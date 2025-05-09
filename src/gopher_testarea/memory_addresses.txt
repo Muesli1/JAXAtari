@@ -1,0 +1,1076 @@
+
+
+;==============================================================================
+; T I A - C O N S T A N T S
+;==============================================================================
+
+HMOVE_L7          =  $70
+HMOVE_L6          =  $60
+HMOVE_L5          =  $50
+HMOVE_L4          =  $40
+HMOVE_L3          =  $30
+HMOVE_L2          =  $20
+HMOVE_L1          =  $10
+HMOVE_0           =  $00
+HMOVE_R1          =  $F0
+HMOVE_R2          =  $E0
+HMOVE_R3          =  $D0
+HMOVE_R4          =  $C0
+HMOVE_R5          =  $B0
+HMOVE_R6          =  $A0
+HMOVE_R7          =  $90
+HMOVE_R8          =  $80
+
+; values for ENAMx and ENABL
+DISABLE_BM        = %00
+ENABLE_BM         = %10
+
+; values for RESMPx
+LOCK_MISSILE      = %10
+UNLOCK_MISSILE    = %00
+
+; values for REFPx:
+NO_REFLECT        = %0000
+REFLECT           = %1000
+
+; values for NUSIZx:
+ONE_COPY          = %000
+TWO_COPIES        = %001
+TWO_MED_COPIES    = %010
+THREE_COPIES      = %011
+TWO_WIDE_COPIES   = %100
+DOUBLE_SIZE       = %101
+THREE_MED_COPIES  = %110
+QUAD_SIZE         = %111
+MSBL_SIZE1        = %000000
+MSBL_SIZE2        = %010000
+MSBL_SIZE4        = %100000
+MSBL_SIZE8        = %110000
+
+; values for CTRLPF:
+PF_PRIORITY       = %100
+PF_SCORE          = %10
+PF_REFLECT        = %01
+PF_NO_REFLECT     = %00
+
+; values for SWCHB
+P1_DIFF_MASK      = %10000000
+P0_DIFF_MASK      = %01000000
+BW_MASK           = %00001000
+SELECT_MASK       = %00000010
+RESET_MASK        = %00000001
+
+VERTICAL_DELAY    = 1
+
+; SWCHA joystick bits:
+MOVE_RIGHT        = %01111111
+MOVE_LEFT         = %10111111
+MOVE_DOWN         = %11011111
+MOVE_UP           = %11101111
+P0_JOYSTICK_MASK  = %11110000
+P1_JOYSTICK_MASK  = %00001111
+
+; SWCHA paddle bits:
+P0_TRIGGER_PRESSED = %01111111
+P1_TRIGGER_PRESSED = %10111111
+P2_TRIGGER_PRESSED = %11110111
+P3_TRIGGER_PRESSED = %11111011
+
+; values for VBLANK:
+DUMP_PORTS        = %10000000
+ENABLE_LATCHES    = %01000000
+DISABLE_TIA       = %00000010
+ENABLE_TIA        = %00000000
+
+;values for VSYNC:
+START_VERT_SYNC   = %10
+STOP_VERT_SYNC    = %00
+
+
+BLACK                   = $00
+WHITE                   = $0E
+RED_ORANGE              = $20
+BRICK_RED               = $30
+RED                     = $40
+BLUE                    = $80
+OLIVE_GREEN             = $B0
+GREEN                   = $C0
+LT_BROWN                = $E0
+BROWN                   = $F0
+
+
+COLOR_PLAYER_1_SCORE =  40
+COLOR_PLAYER_2_SCORE =  188
+COLOR_FARMER_SHOES =  52
+COLOR_FARMER_PANTS =  136
+COLOR_FARMER_SHIRT =  198
+COLOR_FARMER =  72
+COLOR_FARMER_HAT =  234
+COLOR_GOPHER =  240
+COLOR_CARROT_TOP =  196
+COLOR_GRASS_01 =  186
+COLOR_GRASS_02 =  188
+COLOR_GRASS_03 =  190
+COLOR_GARDEN_DIRT =  44
+
+
+HORIZ_POS_HOLE_00       = 15
+HORIZ_POS_HOLE_01       = 31
+HORIZ_POS_HOLE_02       = 47
+HORIZ_POS_HOLE_03       = 111
+HORIZ_POS_HOLE_04       = 127
+HORIZ_POS_HOLE_05       = 143
+
+HORIZ_POS_CARROT_00     = 63
+HORIZ_POS_CARROT_01     = 79
+HORIZ_POS_CARROT_02     = 95
+
+
+;
+; Audio Value constants
+;
+END_AUDIO_TUNE          = 0
+AUDIO_DURATION_MASK     = $E0
+AUDIO_TONE_MASK         = $1F
+
+
+VERT_POS_GOPHER_UNDERGROUND = 0
+VERT_POS_GOPHER_ABOVE_GROUND = 35
+
+
+;
+; Carrot constants
+;
+CARROT_COARSE_POSITION_CYCLE_41 = 0
+CARROT_COARSE_POSITION_CYCLE_47 = $80
+CARROT_COARSE_POSITION_CYCLE_52 = $7F
+
+
+PlayerNumberLiteralSprites
+PlayerNumberLiteral_00
+   .byte $00 ; |........|
+   .byte $C3 ; |XX....XX|
+   .byte $C3 ; |XX....XX|
+   .byte $C3 ; |XX....XX|
+   .byte $F3 ; |XXXX..XX|
+   .byte $DB ; |XX.XX.XX|
+   .byte $CB ; |XX..X.XX|
+   .byte $CB ; |XX..X.XX|
+   .byte $DB ; |XX.XX.XX|
+   .byte $F3 ; |XXXX..XX|
+PlayerNumber_01
+   .byte $00 ; |........|
+   .byte $D1 ; |XX.X...X|
+   .byte $11 ; |...X...X|
+   .byte $1F ; |...XXXXX|
+   .byte $0B ; |....X.XX|
+   .byte $0B ; |....X.XX|
+   .byte $0F ; |....XXXX|
+   .byte $06 ; |.....XX.|
+   .byte $06 ; |.....XX.|
+   .byte $06 ; |.....XX.|
+PlayerNumber_02
+   .byte $00 ; |........|
+   .byte $B0 ; |X.XX....|
+   .byte $90 ; |X..X....|
+   .byte $98 ; |X..XX...|
+   .byte $18 ; |...XX...|
+   .byte $3C ; |..XXXX..|
+   .byte $34 ; |..XX.X..|
+   .byte $76 ; |.XXX.XX.|
+   .byte $62 ; |.XX...X.|
+   .byte $62 ; |.XX...X.|
+PlayerNumber_03
+   .byte $00 ; |........|
+   .byte $FB ; |XXXXX.XX|
+   .byte $C3 ; |XX....XX|
+   .byte $C3 ; |XX....XX|
+   .byte $C3 ; |XX....XX|
+   .byte $C3 ; |XX....XX|
+   .byte $FB ; |XXXXX.XX|
+   .byte $C3 ; |XX....XX|
+   .byte $C3 ; |XX....XX|
+   .byte $FB ; |XXXXX.XX|
+PlayerNumber_04
+   .byte $00 ; |........|
+   .byte $30 ; |..XX....|
+   .byte $20 ; |..X.....|
+   .byte $60 ; |.XX.....|
+   .byte $C0 ; |XX......|
+   .byte $60 ; |.XX.....|
+   .byte $20 ; |..X.....|
+   .byte $20 ; |..X.....|
+   .byte $60 ; |.XX.....|
+   .byte $C0 ; |XX......|
+
+HorizontalTargetValues
+   .byte HORIZ_POS_HOLE_00, HORIZ_POS_HOLE_01
+   .byte HORIZ_POS_HOLE_02, HORIZ_POS_HOLE_03
+   .byte HORIZ_POS_HOLE_04, HORIZ_POS_HOLE_05
+   .byte HORIZ_POS_HOLE_00, HORIZ_POS_HOLE_05
+   .byte HORIZ_POS_CARROT_02, HORIZ_POS_CARROT_01, HORIZ_POS_CARROT_00
+
+   .byte $BA,$A0,$D3,$A0,$AA,$C8    ; unused bytes
+
+   BOUNDARY 0
+
+NumberFonts
+zero
+   .byte $00 ; |........|
+   .byte $38 ; |..XXX...|
+   .byte $6C ; |.XX.XX..|
+   .byte $64 ; |.XX..X..|
+   .byte $64 ; |.XX..X..|
+   .byte $64 ; |.XX..X..|
+   .byte $64 ; |.XX..X..|
+   .byte $64 ; |.XX..X..|
+   .byte $6C ; |.XX.XX..|
+   .byte $38 ; |..XXX...|
+one
+   .byte $00 ; |........|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $38 ; |..XXX...|
+   .byte $18 ; |...XX...|
+   .byte $08 ; |....X...|
+two
+   .byte $00 ; |........|
+   .byte $7C ; |.XXXXX..|
+   .byte $30 ; |..XX....|
+   .byte $30 ; |..XX....|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $0C ; |....XX..|
+   .byte $0C ; |....XX..|
+   .byte $6C ; |.XX.XX..|
+   .byte $38 ; |..XXX...|
+three
+   .byte $00 ; |........|
+   .byte $38 ; |..XXX...|
+   .byte $6C ; |.XX.XX..|
+   .byte $0C ; |....XX..|
+   .byte $0C ; |....XX..|
+   .byte $18 ; |...XX...|
+   .byte $0C ; |....XX..|
+   .byte $0C ; |....XX..|
+   .byte $6C ; |.XX.XX..|
+   .byte $38 ; |..XXX...|
+four
+   .byte $00 ; |........|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $FC ; |XXXXXX..|
+   .byte $48 ; |.X..X...|
+   .byte $68 ; |.XX.X...|
+   .byte $28 ; |..X.X...|
+   .byte $38 ; |..XXX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+five
+   .byte $00 ; |........|
+   .byte $38 ; |..XXX...|
+   .byte $6C ; |.XX.XX..|
+   .byte $0C ; |....XX..|
+   .byte $0C ; |....XX..|
+   .byte $0C ; |....XX..|
+   .byte $78 ; |.XXXX...|
+   .byte $60 ; |.XX.....|
+   .byte $60 ; |.XX.....|
+   .byte $7C ; |.XXXXX..|
+six
+   .byte $00 ; |........|
+   .byte $38 ; |..XXX...|
+   .byte $6C ; |.XX.XX..|
+   .byte $64 ; |.XX..X..|
+   .byte $64 ; |.XX..X..|
+   .byte $6C ; |.XX.XX..|
+   .byte $78 ; |.XXXX...|
+   .byte $60 ; |.XX.....|
+   .byte $6C ; |.XX.XX..|
+   .byte $38 ; |..XXX...|
+seven
+   .byte $00 ; |........|
+   .byte $30 ; |..XX....|
+   .byte $30 ; |..XX....|
+   .byte $30 ; |..XX....|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $0C ; |....XX..|
+   .byte $0C ; |....XX..|
+   .byte $7C ; |.XXXXX..|
+eight
+   .byte $00 ; |........|
+   .byte $38 ; |..XXX...|
+   .byte $6C ; |.XX.XX..|
+   .byte $4C ; |.X..XX..|
+   .byte $5C ; |.X.XXX..|
+   .byte $38 ; |..XXX...|
+   .byte $74 ; |.XXX.X..|
+   .byte $64 ; |.XX..X..|
+   .byte $6C ; |.XX.XX..|
+   .byte $38 ; |..XXX...|
+nine
+   .byte $00 ; |........|
+   .byte $38 ; |..XXX...|
+   .byte $6C ; |.XX.XX..|
+   .byte $0C ; |....XX..|
+   .byte $3C ; |..XXXX..|
+   .byte $6C ; |.XX.XX..|
+   .byte $4C ; |.X..XX..|
+   .byte $4C ; |.X..XX..|
+   .byte $6C ; |.XX.XX..|
+   .byte $38 ; |..XXX...|
+
+USGamesLiteral
+USGamesLiteral_00
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $0F ; |....XXXX|
+   .byte $09 ; |....X..X|
+   .byte $09 ; |....X..X|
+   .byte $09 ; |....X..X|
+   .byte $09 ; |....X..X|
+   .byte $09 ; |....X..X|
+   .byte $09 ; |....X..X|
+USGamesLiteral_01
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $5E ; |.X.XXXX.|
+   .byte $02 ; |......X.|
+   .byte $02 ; |......X.|
+   .byte $1E ; |...XXXX.|
+   .byte $10 ; |...X....|
+   .byte $10 ; |...X....|
+   .byte $1E ; |...XXXX.|
+USGamesLiteral_02
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $BD ; |X.XXXX.X|
+   .byte $25 ; |..X..X.X|
+   .byte $25 ; |..X..X.X|
+   .byte $2D ; |..X.XX.X|
+   .byte $21 ; |..X....X|
+   .byte $21 ; |..X....X|
+   .byte $3D ; |..XXXX.X|
+USGamesLiteral_03
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $2A ; |..X.X.X.|
+   .byte $2A ; |..X.X.X.|
+   .byte $2A ; |..X.X.X.|
+   .byte $EA ; |XXX.X.X.|
+   .byte $2A ; |..X.X.X.|
+   .byte $2A ; |..X.X.X.|
+   .byte $EF ; |XXX.XXXX|
+USGamesLiteral_04
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $BD ; |X.XXXX.X|
+   .byte $A0 ; |X.X.....|
+   .byte $A0 ; |X.X.....|
+   .byte $BD ; |X.XXXX.X|
+   .byte $A1 ; |X.X....X|
+   .byte $A1 ; |X.X....X|
+   .byte $BD ; |X.XXXX.X|
+USGamesLiteral_05
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $E0 ; |XXX.....|
+   .byte $20 ; |..X.....|
+   .byte $20 ; |..X.....|
+   .byte $E0 ; |XXX.....|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $E0 ; |XXX.....|
+
+GameSelectionLiteralSprites
+GameSelection_00
+   .byte $00 ; |........|
+   .byte $72 ; |.XXX..X.|
+   .byte $DA ; |XX.XX.X.|
+   .byte $CB ; |XX..X.XX|
+   .byte $C9 ; |XX..X..X|
+   .byte $D9 ; |XX.XX..X|
+   .byte $C1 ; |XX.....X|
+   .byte $C0 ; |XX......|
+   .byte $C0 ; |XX......|
+   .byte $70 ; |.XXX....|
+GameSelection_01
+   .byte $00 ; |........|
+   .byte $36 ; |..XX.XX.|
+   .byte $36 ; |..XX.XX.|
+   .byte $F6 ; |XXXX.XX.|
+   .byte $66 ; |.XX..XX.|
+   .byte $67 ; |.XX..XXX|
+   .byte $E7 ; |XXX..XXX|
+   .byte $C7 ; |XX...XXX|
+   .byte $C6 ; |XX...XX.|
+   .byte $C6 ; |XX...XX.|
+GameSelection_02
+   .byte $00 ; |........|
+   .byte $2F ; |..X.XXXX|
+   .byte $2C ; |..X.XX..|
+   .byte $AC ; |X.X.XX..|
+   .byte $AC ; |X.X.XX..|
+   .byte $EC ; |XXX.XX..|
+   .byte $6F ; |.XX.XXXX|
+   .byte $6C ; |.XX.XX..|
+   .byte $2C ; |..X.XX..|
+   .byte $2F ; |..X.XXXX|
+GameSelection_03
+   .byte $00 ; |........|
+   .byte $80 ; |X.......|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $80 ; |X.......|
+   .byte $00 ; |........|
+
+FarmerColorValues
+   .byte COLOR_FARMER_SHOES, COLOR_FARMER_SHOES, COLOR_FARMER_SHOES
+   .byte COLOR_FARMER_PANTS, COLOR_FARMER_PANTS, COLOR_FARMER_PANTS
+   .byte COLOR_FARMER_PANTS, COLOR_FARMER_PANTS, COLOR_FARMER_PANTS
+   .byte COLOR_FARMER_PANTS, COLOR_FARMER_PANTS, COLOR_FARMER_PANTS
+   .byte COLOR_FARMER_PANTS, COLOR_FARMER_PANTS, COLOR_FARMER_PANTS
+   .byte COLOR_FARMER_PANTS, COLOR_FARMER_PANTS, COLOR_FARMER_PANTS
+   .byte COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT
+   .byte COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT
+   .byte COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT
+   .byte COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT, COLOR_FARMER_SHIRT
+   .byte COLOR_FARMER_SHIRT, COLOR_FARMER, COLOR_FARMER, COLOR_FARMER
+   .byte COLOR_FARMER, COLOR_FARMER, COLOR_FARMER, COLOR_FARMER, COLOR_FARMER
+   .byte COLOR_FARMER, COLOR_FARMER, COLOR_FARMER, COLOR_FARMER, COLOR_FARMER_HAT
+   .byte COLOR_FARMER_HAT, COLOR_FARMER_SHOES, COLOR_FARMER_HAT, COLOR_FARMER_HAT
+   .byte COLOR_FARMER_HAT, COLOR_FARMER_HAT
+
+   .byte $90,$A0,$D3,$A0,$A2        ; unused bytes
+
+   BOUNDARY 0
+
+Blank
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+
+AudioValues
+StartingThemeAudioValues_00
+   .byte 4                          ; high pitch square wave pure tone
+   .byte  6 << 4 | 15,  7 << 4 |  1,  7 << 4 |  3,  7 << 4 |  4,  7 << 4 |  3
+   .byte  7 << 4 |  1,  7 << 4 |  3,  7 << 4 | 10,  7 << 4 | 15,  7 << 4 | 13
+   .byte  7 << 4 | 10,  7 << 4 |  7,  7 << 4 | 10,  7 << 4 | 15, 28 << 3 | 26
+   .byte  6 << 4 | 15,  7 << 4 |  3,  6 << 4 | 15,  7 << 4 |  3,  7 << 4 |  1
+   .byte  7 << 4 |  4,  7 << 4 |  1,  7 << 4 | 10,  7 << 4 |  4,  7 << 4 |  2
+   .byte  7 << 4 |  1,  7 << 4 |  0, 16 << 3 | 15, 20 << 3 |  9, END_AUDIO_TUNE
+StartingThemeAudioValues_01
+   .byte 12                         ; lower pitch square wave sound
+   .byte  7 << 4 |  1,  7 << 4 |  1, 28 << 3 | 26,  7 << 4 |  4,  7 << 4 |  4
+   .byte  7 << 4 |  1,  7 << 4 |  1, 28 << 3 | 15, 28 << 3 | 17,  7 << 4 |  1
+   .byte  7 << 4 |  4,  7 << 4 |  1,  7 << 4 |  4,  7 << 4 |  3,  7 << 4 |  7
+   .byte  7 << 4 |  3,  7 << 4 |  7,  7 << 4 |  1,  7 << 4 |  2,  7 << 4 |  3
+   .byte  7 << 4 |  6,  7 << 4 |  4,  7 << 4 |  1,  7 << 4 | 10, END_AUDIO_TUNE
+BonkGopherAudioValues
+   .byte 12                         ; lower pitch square wave sound
+   .byte  1 << 4 | 10,  1 << 4 |  2,  0 << 4 | 11,  0 << 4 |  6,  0 << 4 |  1
+   .byte END_AUDIO_TUNE
+GopherTauntAudioValues
+   .byte 4                          ; high pitch square wave pure tone
+   .byte  3 << 4 |  7,  1 << 4 |  0,  3 << 4 |  7,  1 << 4 |  0,  1 << 4 |  7
+   .byte  3 << 4 | 11,  1 << 4 |  3,  3 << 4 | 11,  1 << 4 |  4,  0 << 4 | 14
+   .byte  1 << 4 |  4,  0 << 4 | 14,  1 << 4 |  4,  3 << 4 |  7,  1 << 4 |  0
+   .byte  3 << 4 |  7,  1 << 4 |  0,  1 << 4 |  7,  1 << 4 | 11,  1 << 4 |  3
+   .byte  3 << 4 | 11, END_AUDIO_TUNE
+StolenCarrotAudioValues
+   .byte 7                          ; low and buzzy
+   .byte  1 << 4 |  3,  0 << 4 |  7,  1 << 4 |  3,  0 << 4 |  7,  1 << 4 |  2
+   .byte  0 << 4 |  6,  1 << 4 |  2,  0 << 4 |  6,  1 << 4 |  1,  0 << 4 |  5
+   .byte  1 << 4 |  1,  0 << 4 |  5,  1 << 4 |  0,  0 << 4 |  4,  0 << 4 | 15
+   .byte  0 << 4 |  3,  0 << 4 | 14,  0 << 4 |  2,  0 << 4 | 13,  0 << 4 |  2
+   .byte  0 << 4 | 12,  0 << 4 |  1,  7 << 4 |  2, END_AUDIO_TUNE
+DigTunnelAudioValues
+   .byte 8                          ; white noise
+   .byte  0 << 4 |  4,  0 << 4 |  3, END_AUDIO_TUNE
+FillTunnelAudioValues
+   .byte 6                          ; bass sound
+   .byte  0 << 4 |  1,  0 << 4 |  4,  0 << 4 |  2,  0 << 4 |  6, END_AUDIO_TUNE
+DuckQuackingAudioValues
+   .byte 1                          ; saw waveform
+   .byte  0 << 4 | 15,  0 << 4 | 14,  2 << 4 | 13,  2 << 4 | 12,  4 << 4 | 11
+   .byte  0 << 4 | 12, END_AUDIO_TUNE
+GameOverThemeAudioValues_00
+   .byte 4                          ; high pitch square wave pure tone
+   .byte 28 << 3 |  7, 28 << 3 | 11, 28 << 3 | 17, 28 << 3 | 26,  3 << 4 |  3
+   .byte  2 << 4 |  0,  3 << 4 |  3,  2 << 4 |  0,  3 << 4 |  3,  2 << 4 |  0
+   .byte  3 << 4 |  3,  2 << 4 |  0,  7 << 4 |  4,  6 << 4 |  0,  7 << 4 |  4
+   .byte  6 << 4 |  0,  7 << 4 | 15, END_AUDIO_TUNE
+GameOverThemeAudioValues_01
+   .byte 4                          ; high pitch square wave pure tone
+   .byte 28 << 3 | 11, 28 << 3 | 17, 28 << 3 | 26, 28 << 3 | 19,  3 << 4 |  7
+   .byte  2 << 4 |  0,  3 << 4 |  7,  2 << 4 |  0,  3 << 4 |  7,  2 << 4 |  0
+   .byte  3 << 4 |  7,  2 << 4 |  0,  7 << 4 | 10,  6 << 4 |  0,  7 << 4 | 10
+   .byte  6 << 4 |  0,  7 << 4 |  3, END_AUDIO_TUNE
+
+CarrotGraphics
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $3C ; |..XXXX..|
+   .byte $3C ; |..XXXX..|
+   .byte $3C ; |..XXXX..|
+   .byte $3C ; |..XXXX..|
+   .byte $3C ; |..XXXX..|
+   .byte $7E ; |.XXXXXX.|
+   .byte $7E ; |.XXXXXX.|
+   .byte $7E ; |.XXXXXX.|
+   .byte $7E ; |.XXXXXX.|
+   .byte $7E ; |.XXXXXX.|
+   .byte $3C ; |..XXXX..|
+CarrotTopGraphics
+   .byte $18 ; |...XX...|
+   .byte $9A ; |X..XX.X.|
+   .byte $FA ; |XXXXX.X.|
+   .byte $7F ; |.XXXXXXX|
+   .byte $5C ; |.X.XXX..|
+   .byte $16 ; |...X.XX.|
+   .byte $33 ; |..XX..XX|
+   .byte $F3 ; |XXXX..XX|
+   .byte $5A ; |.X.XX.X.|
+   .byte $10 ; |...X....|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+
+CarrotColorValues
+   .byte BLACK, BLACK, BLACK, BLACK, BLACK, RED_ORANGE + 6, BRICK_RED + 4
+   .byte RED_ORANGE + 6, BRICK_RED + 4, RED_ORANGE + 6, BRICK_RED + 4
+   .byte RED_ORANGE + 6, BRICK_RED + 4, RED_ORANGE + 6, BRICK_RED + 4
+   .byte RED_ORANGE + 6, BRICK_RED + 4, RED_ORANGE + 6, BRICK_RED + 4
+   .byte RED_ORANGE + 6, BRICK_RED + 4, RED_ORANGE + 6
+
+GrassColorValues
+   .byte COLOR_GRASS_03, COLOR_GRASS_03, COLOR_GRASS_03, COLOR_GRASS_03
+   .byte COLOR_GRASS_03, COLOR_GRASS_02, COLOR_GRASS_02, COLOR_GRASS_02
+   .byte COLOR_GRASS_02, COLOR_GRASS_02, COLOR_GRASS_01, COLOR_GRASS_01
+   .byte COLOR_GRASS_01
+
+GopherTargetVertPositions
+   .byte VERT_POS_GOPHER_UNDERGROUND
+   .byte VERT_POS_GOPHER_UNDERGROUND + 7
+   .byte VERT_POS_GOPHER_UNDERGROUND + 14
+   .byte VERT_POS_GOPHER_ABOVE_GROUND - 13
+   .byte VERT_POS_GOPHER_ABOVE_GROUND - 1
+   .byte VERT_POS_GOPHER_ABOVE_GROUND
+   .byte VERT_POS_GOPHER_UNDERGROUND + 7
+   .byte VERT_POS_GOPHER_UNDERGROUND + 14
+
+   .byte VERT_POS_GOPHER_ABOVE_GROUND - 13
+   .byte VERT_POS_GOPHER_ABOVE_GROUND
+   .byte VERT_POS_GOPHER_ABOVE_GROUND - 1
+   .byte VERT_POS_GOPHER_UNDERGROUND + 14
+   .byte VERT_POS_GOPHER_ABOVE_GROUND - 13
+   .byte VERT_POS_GOPHER_ABOVE_GROUND
+   .byte VERT_POS_GOPHER_ABOVE_GROUND - 1
+   .byte VERT_POS_GOPHER_ABOVE_GROUND
+
+CarrotAttributeValues
+   .byte CARROT_COARSE_POSITION_CYCLE_52, HMOVE_L1, ONE_COPY
+   .byte CARROT_COARSE_POSITION_CYCLE_47, HMOVE_L2, ONE_COPY
+   .byte CARROT_COARSE_POSITION_CYCLE_47, HMOVE_L2, TWO_COPIES
+   .byte CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0,  ONE_COPY
+   .byte CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0,  TWO_MED_COPIES
+   .byte CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0,  TWO_COPIES
+   .byte CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0,  THREE_COPIES
+
+FarmerSprites
+FarmerSprite_00
+   .byte $00 ; |........|
+   .byte $38 ; |..XXX...|
+   .byte $38 ; |..XXX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $1E ; |...XXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $31 ; |..XX...X|
+   .byte $37 ; |..XX.XXX|
+   .byte $37 ; |..XX.XXX|
+   .byte $37 ; |..XX.XXX|
+   .byte $3F ; |..XXXXXX|
+   .byte $3F ; |..XXXXXX|
+   .byte $1F ; |...XXXXX|
+   .byte $1F ; |...XXXXX|
+   .byte $0F ; |....XXXX|
+   .byte $07 ; |.....XXX|
+   .byte $03 ; |......XX|
+   .byte $03 ; |......XX|
+   .byte $03 ; |......XX|
+   .byte $07 ; |.....XXX|
+   .byte $0F ; |....XXXX|
+   .byte $0C ; |....XX..|
+   .byte $0B ; |....X.XX|
+   .byte $0F ; |....XXXX|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $1D ; |...XXX.X|
+   .byte $18 ; |...XX...|
+   .byte $7F ; |.XXXXXXX|
+   .byte $3F ; |..XXXXXX|
+   .byte $0F ; |....XXXX|
+   .byte $07 ; |.....XXX|
+   .byte $07 ; |.....XXX|
+   .byte $06 ; |.....XX.|
+   .byte $02 ; |......X.|
+FarmerSprite_01
+   .byte $00 ; |........|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $31 ; |..XX...X|
+   .byte $1F ; |...XXXXX|
+   .byte $1F ; |...XXXXX|
+   .byte $0F ; |....XXXX|
+   .byte $07 ; |.....XXX|
+   .byte $03 ; |......XX|
+   .byte $03 ; |......XX|
+   .byte $07 ; |.....XXX|
+   .byte $0F ; |....XXXX|
+   .byte $0D ; |....XX.X|
+   .byte $08 ; |....X...|
+   .byte $0B ; |....X.XX|
+   .byte $0F ; |....XXXX|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $1D ; |...XXX.X|
+   .byte $18 ; |...XX...|
+   .byte $7F ; |.XXXXXXX|
+   .byte $3F ; |..XXXXXX|
+   .byte $0F ; |....XXXX|
+   .byte $07 ; |.....XXX|
+   .byte $07 ; |.....XXX|
+   .byte $06 ; |.....XX.|
+   .byte $02 ; |......X.|
+FarmerSprite_02
+   .byte $00 ; |........|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $18 ; |...XX...|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $03 ; |......XX|
+   .byte $07 ; |.....XXX|
+   .byte $0D ; |....XX.X|
+   .byte $0C ; |....XX..|
+   .byte $08 ; |....X...|
+   .byte $08 ; |....X...|
+   .byte $0B ; |....X.XX|
+   .byte $0F ; |....XXXX|
+   .byte $1E ; |...XXXX.|
+   .byte $1F ; |...XXXXX|
+   .byte $1D ; |...XXX.X|
+   .byte $18 ; |...XX...|
+   .byte $7F ; |.XXXXXXX|
+   .byte $3F ; |..XXXXXX|
+   .byte $0F ; |....XXXX|
+   .byte $07 ; |.....XXX|
+   .byte $07 ; |.....XXX|
+   .byte $06 ; |.....XX.|
+   .byte $02 ; |......X.|
+
+DuckWingsStationaryGraphics
+   .byte $00 ; |........|
+   .byte $0C ; |....XX..|
+   .byte $36 ; |..XX.XX.|
+   .byte $1B ; |...XX.XX|
+   .byte $07 ; |.....XXX|
+   .byte $0F ; |....XXXX|
+   .byte $0F ; |....XXXX|
+   .byte $1F ; |...XXXXX|
+   .byte $1F ; |...XXXXX|
+   .byte $37 ; |..XX.XXX|
+   .byte $0F ; |....XXXX|
+   .byte $7C ; |.XXXXX..|
+   .byte $02 ; |......X.|
+   .byte $1E ; |...XXXX.|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+DuckFaceGraphics
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $80 ; |X.......|
+   .byte $C0 ; |XX......|
+   .byte $E0 ; |XXX.....|
+   .byte $E0 ; |XXX.....|
+   .byte $F0 ; |XXXX....|
+   .byte $F0 ; |XXXX....|
+   .byte $F8 ; |XXXXX...|
+   .byte $7F ; |.XXXXXXX|
+   .byte $C0 ; |XX......|
+   .byte $BF ; |X.XXXXXX|
+   .byte $FE ; |XXXXXXX.|
+   .byte $54 ; |.X.X.X..|
+   .byte $7C ; |.XXXXX..|
+   .byte $7F ; |.XXXXXXX|
+   .byte $78 ; |.XXXX...|
+   .byte $78 ; |.XXXX...|
+DuckWingsDownGraphics
+   .byte $00 ; |........|
+   .byte $1C ; |...XXX..|
+   .byte $76 ; |.XXX.XX.|
+   .byte $1B ; |...XX.XX|
+   .byte $07 ; |.....XXX|
+   .byte $07 ; |.....XXX|
+   .byte $FB ; |XXXXX.XX|
+   .byte $3D ; |..XXXX.X|
+   .byte $1D ; |...XXX.X|
+   .byte $3D ; |..XXXX.X|
+   .byte $07 ; |.....XXX|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+DuckWingsUpGraphics
+   .byte $00 ; |........|
+   .byte $1C ; |...XXX..|
+   .byte $76 ; |.XXX.XX.|
+   .byte $1B ; |...XX.XX|
+   .byte $07 ; |.....XXX|
+   .byte $0F ; |....XXXX|
+   .byte $0F ; |....XXXX|
+   .byte $1F ; |...XXXXX|
+   .byte $1F ; |...XXXXX|
+   .byte $3F ; |..XXXXXX|
+   .byte $07 ; |.....XXX|
+   .byte $03 ; |......XX|
+   .byte $03 ; |......XX|
+   .byte $03 ; |......XX|
+   .byte $07 ; |.....XXX|
+   .byte $0F ; |....XXXX|
+   .byte $3E ; |..XXXXX.|
+   .byte $01 ; |.......X|
+   .byte $0F ; |....XXXX|
+
+   .byte 0                          ; unused bytes
+
+DuckColorValues
+DuckLeftColorValues
+   .byte BLUE + 12, BLUE + 12, BLUE + 12, WHITE, WHITE, WHITE, WHITE, WHITE
+   .byte WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE
+   .byte 0                          ; unused bytes
+DuckRightColorValues
+   .byte WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, WHITE
+   .byte BROWN + 12, BROWN + 12, BROWN + 12, WHITE, WHITE, WHITE, RED_ORANGE + 8
+   .byte RED_ORANGE + 8, RED_ORANGE + 8
+
+CopyrightLiteralSprites
+Copyright_00
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $EE ; |XXX.XXX.|
+   .byte $8A ; |X...X.X.|
+   .byte $8A ; |X...X.X.|
+   .byte $8A ; |X...X.X.|
+   .byte $8E ; |X...XXX.|
+   .byte $80 ; |X.......|
+   .byte $E0 ; |XXX.....|
+Copyright_01
+   .byte $0E ; |....XXX.|
+   .byte $82 ; |X.....X.|
+   .byte $82 ; |X.....X.|
+   .byte $EE ; |XXX.XXX.|
+   .byte $AA ; |X.X.X.X.|
+   .byte $AA ; |X.X.X.X.|
+   .byte $AA ; |X.X.X.X.|
+   .byte $EA ; |XXX.X.X.|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+Copyright_02
+   .byte $07 ; |.....XXX|
+   .byte $05 ; |.....X.X|
+   .byte $01 ; |.......X|
+   .byte $97 ; |X..X.XXX|
+   .byte $95 ; |X..X.X.X|
+   .byte $95 ; |X..X.X.X|
+   .byte $95 ; |X..X.X.X|
+   .byte $D7 ; |XX.X.XXX|
+   .byte $00 ; |........|
+   .byte $10 ; |...X....|
+Copyright_03
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $54 ; |.X.X.X..|
+   .byte $54 ; |.X.X.X..|
+   .byte $54 ; |.X.X.X..|
+   .byte $54 ; |.X.X.X..|
+   .byte $74 ; |.XXX.X..|
+   .byte $4E ; |.X..XXX.|
+   .byte $44 ; |.X...X..|
+Copyright_04
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $11 ; |...X...X|
+   .byte $11 ; |...X...X|
+   .byte $11 ; |...X...X|
+   .byte $17 ; |...X.XXX|
+   .byte $15 ; |...X.X.X|
+   .byte $15 ; |...X.X.X|
+   .byte $17 ; |...X.XXX|
+Copyright_05
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $77 ; |.XXX.XXX|
+   .byte $54 ; |.X.X.X..|
+   .byte $54 ; |.X.X.X..|
+   .byte $77 ; |.XXX.XXX|
+   .byte $51 ; |.X.X...X|
+   .byte $51 ; |.X.X...X|
+   .byte $77 ; |.XXX.XXX|
+
+
+RisingGopherSprite
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $14 ; |...X.X..|
+   .byte $36 ; |..XX.XX.|
+   .byte $36 ; |..XX.XX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $36 ; |..XX.XX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $7F ; |.XXXXXXX|
+   .byte $7F ; |.XXXXXXX|
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $7F ; |.XXXXXXX|
+   .byte $6B ; |.XX.X.XX|
+   .byte $6B ; |.XX.X.XX|
+   .byte $6B ; |.XX.X.XX|
+   .byte $5D ; |.X.XXX.X|
+   .byte $77 ; |.XXX.XXX|
+   .byte $3E ; |..XXXXX.|
+   .byte $2A ; |..X.X.X.|
+   .byte $7F ; |.XXXXXXX|
+   .byte $63 ; |.XX...XX|
+
+NullSprite
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+;
+; last 13 bytes shared with table below
+;
+NullRunningGopher
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+
+RunningGopher_00
+   .byte $00 ; |........|
+   .byte $42 ; |.X....X.|
+   .byte $24 ; |..X..X..|
+   .byte $7C ; |.XXXXX..|
+   .byte $FC ; |XXXXXX..|
+   .byte $FC ; |XXXXXX..|
+   .byte $FE ; |XXXXXXX.|
+   .byte $FA ; |XXXXX.X.|
+   .byte $D2 ; |XX.X..X.|
+   .byte $72 ; |.XXX..X.|
+   .byte $12 ; |...X..X.|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+RunningGopher_01
+   .byte $00 ; |........|
+   .byte $18 ; |...XX...|
+   .byte $28 ; |..X.X...|
+   .byte $7C ; |.XXXXX..|
+   .byte $FC ; |XXXXXX..|
+   .byte $FC ; |XXXXXX..|
+   .byte $FE ; |XXXXXXX.|
+   .byte $FA ; |XXXXX.X.|
+   .byte $D2 ; |XX.X..X.|
+   .byte $72 ; |.XXX..X.|
+   .byte $12 ; |...X..X.|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+GopherTauntSprite_00
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $07 ; |.....XXX|
+   .byte $2F ; |..X.XXXX|
+   .byte $57 ; |.X.X.XXX|
+   .byte $07 ; |.....XXX|
+   .byte $3B ; |..XXX.XX|
+   .byte $7F ; |.XXXXXXX|
+   .byte $7E ; |.XXXXXX.|
+   .byte $36 ; |..XX.XX.|
+   .byte $1E ; |...XXXX.|
+   .byte $16 ; |...X.XX.|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+GopherTauntSprite_01
+   .byte $3E ; |..XXXXX.|
+   .byte $3E ; |..XXXXX.|
+   .byte $07 ; |.....XXX|
+   .byte $57 ; |.X.X.XXX|
+   .byte $2F ; |..X.XXXX|
+   .byte $07 ; |.....XXX|
+   .byte $3B ; |..XXX.XX|
+   .byte $7F ; |.XXXXXXX|
+   .byte $7E ; |.XXXXXX.|
+   .byte $36 ; |..XX.XX.|
+   .byte $1E ; |...XXXX.|
+   .byte $16 ; |...X.XX.|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
+   .byte $00 ; |........|
