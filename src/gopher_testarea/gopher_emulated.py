@@ -2,13 +2,14 @@ import ctypes
 from multiprocessing import Process
 from pathlib import Path
 from multiprocessing import Manager
+from threading import Lock
 
 import numpy as np
 from numpy.typing import NDArray
 from ale_py import ALEInterface, roms, Action, LoggerMode
 
 from byte_util import compare_ram_states
-from chunked_writing_util import create_array_chunk_writer, load_array_pairs
+from chunked_writing_util import create_array_chunk_writer, load_array_pairs, get_next_free_run_id
 
 import multiprocessing
 
@@ -87,42 +88,27 @@ def print_ram(ale, name: str, do_print=True):
         print("#", hash(tuple(ale.getRAM().tolist())))
         print(name, "= [" + ", ".join([str(x) for x in ale.getRAM().tolist()]) + "]")
 
-    save_or_check(ale, "init/" + name, 0)
+    save_or_check(ale, "init/" + name)
 
 
-def save_or_check(ale, name: str, action: int):
+def save_or_check(ale, name: str):
     frame_name = f"ram_states/{name}.npy"
-    action_name = f"ram_states/{name}_action.npy"
 
-    if Path(frame_name).exists() and Path(action_name).exists():
+    if Path(frame_name).exists():
         loaded: NDArray = np.load(frame_name)
-        loaded_action: NDArray = np.load(action_name)
         assert loaded.shape == ale.getRAM().shape, f"Inconsistent RAM shape {loaded.shape} vs {ale.getRAM().shape}"
 
         compare_ram_states(loaded.tolist(), ale.getRAM().tolist(), name, [], ram_full_name_mapping)
         assert np.array_equal(loaded,
                               ale.getRAM()), f"Inconsistent RAM state '{name}'!\n{loaded.tolist()}\n{ale.getRAM().tolist()}"
-        assert loaded_action.item() == action, f"Inconsistent action '{name}! {loaded_action.item()} vs {action}"
     else:
         np.save(frame_name, ale.getRAM())
-        np.save(action_name, np.asarray(action))
 
 
-# id_start inclusive, id_end exclusive
-def emulate(name: str, process_idx: int, id_start: int, id_end: int, chunk_size: int, queue: multiprocessing.Queue):
-    ALEInterface.setLoggerMode(LoggerMode.Warning)
-    ale = ALEInterface()
-    ale.setInt("frame_skip", 1)
-    ale.setFloat("repeat_action_probability", -1.0)
-    ale.setInt("max_num_frames_per_episode", 0)
-
-    ale.loadROM(roms.get_rom_path("gopher"))
-
-    ale.setDifficulty(1)  # 0 or 1
-    ale.setMode(0)  # 0 or 2
-
-    # https://github.com/Farama-Foundation/Arcade-Learning-Environment/blob/d91b1016bd1f1ec6a3ec8a9a34c87dd77011e2a6/src/ale/games/supported/Gopher.cpp
-    # https://github.com/Farama-Foundation/Arcade-Learning-Environment/blob/d91b1016bd1f1ec6a3ec8a9a34c87dd77011e2a6/src/ale/environment/stella_environment.cpp#L126
+def reset_ale_game(ale: ALEInterface, lock=None, difficulty: int = 1, mode: int = 0):
+    # https://github.com/Farama-Foundation/Arcade-Learning-Environment/blob/master/src/ale/games/supported/Gopher.cpp
+    # https://github.com/Farama-Foundation/Arcade-Learning-Environment/blob/master/src/ale/environment/stella_environment.cpp#L126
+    # https://github.com/Farama-Foundation/Arcade-Learning-Environment/blob/master/src/ale/ale_interface.cpp
 
     # First 60 steps of NOP
     # Then softReset => m_num_reset_steps (=4) of RESET button step
@@ -134,23 +120,180 @@ def emulate(name: str, process_idx: int, id_start: int, id_end: int, chunk_size:
     # NOTE:
     # "pressSelect" => setting select 5 times, then do ONE step with NOP
 
-    # => 60 of NOP + 4 of RESET + 8 of RESET + 4 of RESET + 1 of PLAYER_A_FIRE
-    # => 60 of NOP + 16 of RESET + 1 of PLAYER_A_FIRE
+    # => 60 of NOP + 4 of RESET + 4 of RESET + x*(5 of SELECT + 1 nop) + 4 of RESET + 4 of RESET + 1 of PLAYER_A_FIRE
+    # => 60 of NOP + 8 of RESET + x*(5 of SELECT + 1 nop) + 8 of RESET + 1 of PLAYER_A_FIRE
 
     # Brings game to first player input state
-    def reset_game():
-        ale.reset_game()
-        if id_start == 0:
-            print_ram(ale, "expected_ram_after_init", do_print=False)
-        for i in range(238):
-            ale.act(0)
-        if id_start == 0:
-            print_ram(ale, "expected_ram_before_start", do_print=False)
-        ale.act(0)
-        if id_start == 0:
-            print_ram(ale, "expected_ram_after_start", do_print=False)
 
-    reset_game()
+    def save_or_compare_ram(name: str):
+        if lock is not None:
+            lock.acquire()
+            try:
+                print_ram(ale, f"{name}_{difficulty}_{mode}", do_print=False)
+            finally:
+                lock.release()
+
+    set_difficulty_and_mode(ale, difficulty, mode)
+    ale.reset_game()
+    save_or_compare_ram("expected_ram_after_init")
+    for i in range(238):
+        ale.act(0)
+    save_or_compare_ram("expected_ram_before_start")
+    ale.act(0)
+    save_or_compare_ram("expected_ram_after_start")
+
+
+def set_difficulty_and_mode(ale: ALEInterface, difficulty: int = 1, mode: int = 0):
+    assert difficulty in (0, 1)
+    assert mode in (0, 2)
+    ale.setDifficulty(difficulty)  # 0 (amateur/B) or 1 (pro/A)
+    ale.setMode(mode)  # 0 (with duck) or 2 (without duck)
+    # Other modes (1 and 3) are for two players.
+
+
+def load_ale_interface(difficulty: int = 1, mode: int = 0) -> ALEInterface:
+    ALEInterface.setLoggerMode(LoggerMode.Warning)
+    ale = ALEInterface()
+    ale.setInt("frame_skip", 1)
+    ale.setFloat("repeat_action_probability", -1.0)
+    ale.setInt("max_num_frames_per_episode", 0)
+    ale.setBool("display_screen", False)
+    ale.setBool("sound", False)
+
+    ale.loadROM(roms.get_rom_path("gopher"))
+
+    set_difficulty_and_mode(ale, difficulty, mode)
+
+    return ale
+
+
+def emulate_with_human_input(display_scale_factor=4.0, chunk_size=1_000_000,
+                             difficulty: int = 1, mode: int = 0):
+    import pygame
+
+    run_id = get_next_free_run_id("ram_states/runs/human", "ram")
+    write, flush_writer = create_array_chunk_writer("ram_states/runs/human", f"ram_{run_id}", chunk_size)
+    print("Human run ID:", run_id)
+
+    ale = load_ale_interface()
+    # ale.setBool("display_screen", False)
+    # ale.setBool("sound", True)
+
+    reset_ale_game(ale)
+
+    width, height = ale.getScreenDims()
+
+    # Initialize pygame
+    pygame.init()
+    screen = pygame.display.set_mode((height * display_scale_factor, width * display_scale_factor))
+    pygame.display.set_caption("Gopher")
+    clock = pygame.time.Clock()
+
+    running = True
+    score_sum = 0
+
+    button_states = [False, False, False, False]
+    button_key_codes = [[pygame.K_SPACE], [pygame.K_LEFT, pygame.K_a], [pygame.K_RIGHT, pygame.K_d],
+                        [pygame.K_ESCAPE, pygame.K_q]]
+    button_fire_id = 0
+    button_left_id = 1
+    button_right_id = 2
+    button_quit_id = 3
+
+    valid_actions = [
+        Action(0),  # NOOP
+        Action(1),  # FIRE
+        # Action(2), # UP
+        Action(3),  # RIGHT
+        Action(4),  # LEFT
+        # Action(10), # UPFIRE
+        Action(11),  # RIGHTFIRE
+        Action(12)  # LEFTFIRE
+    ]
+
+    def get_key_idx(key):
+        for idx, values in enumerate(button_key_codes):
+            if key in values:
+                return idx
+        return None
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+            # Handle key presses
+            elif event.type == pygame.KEYDOWN or event.type == pygame.KEYUP:
+                new_value = event.type == pygame.KEYDOWN
+                key_idx = get_key_idx(event.key)
+                if key_idx is not None:
+                    button_states[key_idx] = new_value
+
+        if not button_states[button_fire_id] and not button_states[button_left_id] and not button_states[
+            button_right_id]:
+            action = 0  # NOOP
+        else:
+            if button_states[button_left_id] and button_states[button_right_id]:
+                # both left and right, cancel each other out
+                # FIRE or NOOP
+                action = 1 if button_states[button_fire_id] else 0
+            else:
+                if button_states[button_fire_id]:
+                    if button_states[button_left_id]:
+                        action = 5  # LEFTFIRE
+                    elif button_states[button_right_id]:
+                        action = 4  # RIGHTFIRE
+                    else:
+                        action = 1  # FIRE
+                else:
+                    if button_states[button_left_id]:
+                        action = 3  # LEFT
+                    else:
+                        assert button_states[button_right_id]
+                        action = 2  # RIGHT
+
+        reward = ale.act(valid_actions[action])
+        score_sum += reward
+        write(ale.getRAM(), np.asarray([action, difficulty, mode]))
+
+        game_over = ale.game_over() or button_states[button_quit_id]
+
+        if game_over:
+            print(f"Run ended with score {score_sum}. Saving to disk.")
+            flush_writer()
+            reset_ale_game(ale)
+            score_sum = 0
+
+            if button_states[button_quit_id]:
+                break
+
+        # Get RGB screen and display it
+        rgb_screen = ale.getScreenRGB()
+
+        # Convert to correct format for pygame
+        rgb_screen = np.transpose(rgb_screen, (1, 0, 2))  # Adjust if needed
+        surface = pygame.surfarray.make_surface(rgb_screen)
+        scaled_surface = pygame.transform.scale(surface, (height * display_scale_factor, width * display_scale_factor))
+        screen.blit(scaled_surface, (0, 0))
+        pygame.display.update()
+
+        # Control frame rate (adjust as needed)
+        clock.tick(60)
+
+    flush_writer()
+
+
+# id_start inclusive, id_end exclusive
+def emulate(name: str, seed: int, process_idx: int, id_start: int, id_end: int, chunk_size: int,
+            queue: multiprocessing.Queue, lock: multiprocessing.Lock):
+    write, close_writer = create_array_chunk_writer("ram_states/runs/" + name, f"ram_{process_idx}", chunk_size)
+
+    ale = load_ale_interface()
+    rng = np.random.default_rng(seed + process_idx)
+
+    difficulty = rng.choice([0, 1])
+    mode = rng.choice([0, 2])
+    reset_ale_game(ale, lock, difficulty=difficulty, mode=mode)
 
     # print(ale.getMinimalActionSet())
     # [<Action.NOOP: 0>, <Action.FIRE: 1>, <Action.UP: 2>, <Action.RIGHT: 3>,
@@ -172,24 +315,23 @@ def emulate(name: str, process_idx: int, id_start: int, id_end: int, chunk_size:
     for action in valid_actions:
         assert action in ale.getMinimalActionSet()
 
-    rng = np.random.default_rng(1025 + process_idx)
-    # random_actions = rng.integers(0, len(valid_actions), size=chunk_size)
-
-    write, close_writer = create_array_chunk_writer("ram_states/runs/" + name, f"ram_{process_idx}", chunk_size)
-
     curr = id_start
     i = 0
     while curr < id_end:
         random_action_idx = rng.integers(0, len(valid_actions))
         action = valid_actions[random_action_idx]
         reward = ale.act(action)
-        write(ale.getRAM(), np.asarray(random_action_idx))
+        write(ale.getRAM(), np.asarray([random_action_idx, difficulty, mode]))
 
         if ale.game_over():
             # print("Reset game after frame", i + 1)
             curr += 1
             queue.put(1)
-            reset_game()
+
+            difficulty = rng.choice([0, 1])
+            mode = rng.choice([0, 2])
+
+            reset_ale_game(ale, lock, difficulty=difficulty, mode=mode)
 
         i += 1
 
@@ -241,15 +383,21 @@ def counter_process(name: str, queue: multiprocessing.Queue, max: int):
             pbar.update(1)
 
 
-def run_with_multiple_processed(amount: int, name: str, file_chunk_size: int = 1_000_000):
+def run_with_multiple_processes(amount: int, name: str, file_chunk_size: int = 1_000_000, seed: int | None = None):
+    if seed is None:
+        np.random.default_rng(None)
+        seed = np.random.default_rng(None).integers(0, 2 ** 32)
+        print("Using random seed", seed)
+
     count_queue = Manager().Queue()
+    lock = Manager().Lock()
     # Start counter process
     counter = Process(target=counter_process, args=("Emulating games", count_queue, amount))
     counter.start()
 
     num_processes = multiprocessing.cpu_count()
     chunk_indices = get_chunk_indices(amount, num_processes)
-    items = [(name, idx, i[0], i[1], file_chunk_size, count_queue) for (idx, i) in enumerate(chunk_indices)]
+    items = [(name, seed, idx, i[0], i[1], file_chunk_size, count_queue, lock) for (idx, i) in enumerate(chunk_indices)]
 
     with multiprocessing.Pool() as pool:
         pool.starmap(emulate, items)
@@ -260,4 +408,5 @@ def run_with_multiple_processed(amount: int, name: str, file_chunk_size: int = 1
 
 
 if __name__ == '__main__':
-    run_with_multiple_processed(10_000, "random2")
+    # run_with_multiple_processes(100, "random")
+    emulate_with_human_input()

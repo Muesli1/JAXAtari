@@ -79,10 +79,26 @@ def sort_by_numbers(filename):
     return (0, 0)  # fallback for files that don't match pattern
 
 
+def get_next_free_run_id(
+        input_dir: str,
+        file_prefix: str
+):
+    pattern = os.path.join(input_dir, f"{file_prefix}_*.npz")
+
+    def get_run_id(filename):
+        return sort_by_numbers(filename)[0]
+
+    files = glob.glob(pattern)
+    if len(files) == 0:
+        return 0
+
+    return max([get_run_id(x) for x in files]) + 1
+
+
 def load_array_pairs(
         input_dir: str,
         file_prefix: str
-) -> Generator[Tuple[NDArray, NDArray], None, None]:
+) -> Generator[Tuple[NDArray, NDArray, bool], None, None]:
     """
     Generator that loads and yields pairs of arrays from chunked npz files.
 
@@ -91,7 +107,7 @@ def load_array_pairs(
         file_prefix: Prefix of the files to load
 
     Yields:
-        Tuples containing (first_array, second_array) pairs
+        Tuples containing (first_array, second_array, new_run) triples
     """
     # Find all matching files
     pattern = os.path.join(input_dir, f"{file_prefix}_*.npz")
@@ -100,8 +116,12 @@ def load_array_pairs(
     if not files:
         raise FileNotFoundError(f"No files found matching pattern: {pattern}")
 
+    current_run_id = -1
+
     # Process each file
     for file_path in files:
+        run_id = sort_by_numbers(file_path)[0]
+
         # Load the npz file
         with np.load(file_path) as data:
             first_arrays = data['first']
@@ -109,4 +129,5 @@ def load_array_pairs(
 
             # Yield each pair of arrays
             for i in range(len(first_arrays)):
-                yield first_arrays[i], second_arrays[i]
+                yield first_arrays[i], second_arrays[i], run_id != current_run_id
+                current_run_id = run_id

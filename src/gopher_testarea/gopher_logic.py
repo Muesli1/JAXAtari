@@ -1,15 +1,9 @@
 # https://atariage.com/2600/programming/2600_101/docs/onestep.html
 # http://www.6502.org/tutorials/6502opcodes.html#DFLAG
-import sys
-
-import numpy as np
-from typing import Any
-from chunked_writing_util import load_array_pairs
 
 # https://www.randomterrain.com/atari-2600-memories-tutorial-andrew-davie-25.html
 
 from byte_util import *
-from debug_util import debug_show_game_field
 
 # == Visual Constants (NTSC) ==
 
@@ -414,36 +408,6 @@ fallingSeedScanline = ds(1, "fallingSeedScanline")
 duckAnimationRate = ds(1, "duckAnimationRate")
 fallingSeedHorizPos = ds(1, "fallingSeedHorizPos")
 heldSeedDecayingTimer = ds(1, "heldSeedDecayingTimer")
-
-
-def create_and_print_ram_mapping():
-    full_name_mapping: dict[int, str] = {}
-
-    print("=" * 15, "RAM MAPPING", "=" * 15)
-    print()
-    print(current_ram_pointer, "BYTES OF RAM USED", 128 - current_ram_pointer, "BYTES FREE")
-    print("RAM mapping:")
-    for offset in range(current_ram_pointer):
-        full_name = f"{ram_name_area_mappings[offset]}"
-
-        additional_mappings = ram_name_additional_mappings.get(offset, [])
-        if len(additional_mappings) > 0:
-            full_name += " / " + " / ".join(additional_mappings)
-
-        print(f"\t{offset:03}: {full_name}")
-        full_name_mapping[offset] = full_name
-
-    for offset in range(current_ram_pointer, 256):
-        full_name_mapping[offset] = "unused"
-
-    print()
-    print("=" * 15, "RAM MAPPING", "=" * 15)
-    print()
-
-    return full_name_mapping
-
-
-ram_full_name_mapping = create_and_print_ram_mapping()
 
 # === ATARI / TIA CONSTANTS ===
 
@@ -892,19 +856,7 @@ intpt5_input = 0b11111111  # not pressed
 # Create 128 bytes of RAM (zero-initialized)
 ram = [0] * 128
 
-
 # ================================ UTILITY =================================
-
-expected_ram_after_init = np.load("ram_states/init/expected_ram_after_init.npy")
-expected_ram_before_start = np.load("ram_states/init/expected_ram_before_start.npy")
-expected_ram_after_start = np.load("ram_states/init/expected_ram_after_start.npy")
-
-ignored_ram_states = [
-    72,  # tmpSixDigitDisplayLoop - rendering
-    93,  # fallingSeedScanline - rendering
-
-    124, 125, 126, 127  # most likely stack, or Stella internals
-]
 
 frame_log: list[str] = []
 _debug_frame_number = -1
@@ -912,189 +864,77 @@ _debug_frame_number = -1
 
 def log(*message):
     global frame_log
-
     frame_log.append(" ".join([str(piece) for piece in message]))
-
-
-def print_field(ram):
-    gopher_target_x = ram[gopherHorizPos]
-    facing_left = ram[gopherReflectState] == NO_REFLECT
-
-    if not facing_left:
-        gopher_target_x = gopher_target_x + 8
-        assert gopher_target_x <= 255
-
-    goper_pos_y = ram[gopherVertPos]
-
-    # Digging underground
-    if goper_pos_y == 0:
-        gopher_target_y = 3
-    elif goper_pos_y >= VERT_POS_GOPHER_UNDERGROUND + 14:
-        gopher_target_y = 0
-    elif goper_pos_y >= VERT_POS_GOPHER_UNDERGROUND + 7:
-        gopher_target_y = 1
-    else:
-        gopher_target_y = 2
-
-    debug_show_game_field(ram, gardenDirtValues, determine_dirt_floor_index, gopher_target_x, gopher_target_y)
-
-
-def reset_input():
-    global swcha_input
-    global swchb_input
-    global intpt4_input
-    global intpt5_input
-
-    # Reset inputs
-    swcha_input = 0b11111111  # nothing pressed
-    swchb_input = 0b11111111  # default: pro difficulty, color, select and reset not pressed
-    intpt4_input = 0b11111111  # not pressed
-    intpt5_input = 0b11111111  # not pressed
-
-
-def translate_action(action: int):
-    valid_actions = [
-        "NOOP",
-        "FIRE",
-        # Action(2), # UP
-        "RIGHT",  # RIGHT
-        "LEFT",  # LEFT
-        # Action(10), # UPFIRE
-        "RIGHTFIRE",  # RIGHTFIRE
-        "LEFTFIRE"  # LEFTFIRE
-    ]
-
-    the_action = valid_actions[action]
-
-    global swcha_input
-    global swchb_input
-    global intpt4_input
-
-    reset_input()
-
-    # Set inputs
-    if the_action == "NOOP":
-        return
-    if the_action == "FIRE" or the_action == "RIGHTFIRE" or the_action == "LEFTFIRE":
-        intpt4_input = intpt4_input & ~ACTION_MASK
-    if the_action == "RIGHT" or the_action == "RIGHTFIRE":
-        swcha_input = swcha_input & ~MOVE_RIGHT
-    if the_action == "LEFT" or the_action == "LEFTFIRE":
-        swcha_input = swcha_input & ~MOVE_LEFT
-
-
-def compare_ram_states_with_log(expected: list[int], name: str):
-    if not compare_ram_states(ram, expected, name, ignored_ram_states, ram_full_name_mapping, exit_on_mismatch=False):
-
-        if len(frame_log) > 0:
-            print("= Log replay =")
-            for line in frame_log:
-                print(line)
-        else:
-            print("= No log available =")
-
-        print()
-        print_field(ram)
-        print()
-        print("= EXPECTED FIELD =")
-        print()
-        print_field(expected)
-        print()
-
-        exit(5)
-
-
-def reset_game(verbose: bool = True):
-    global intpt4_input
-    global swchb_input
-
-    reset_input()
-
-    if verbose:
-        print("Starting...")
-    # 1st frame (NOP)
-    start()
-    if verbose:
-        print("Started")
-        print()
-    assert has_hit_new_frame, "Start did not hit new_frame!"
-
-    if verbose:
-        print("Reset to game selection...")
-
-    # Already one NOP used on start
-    for i in range(60 - 1):
-        # NOP
-        do_tick()
-
-    # press reset to go to GS_DISPLAY_GAME_SELECTION (game state 5)
-    for i in range(16):
-        swchb_input = swchb_input & ~RESET_MASK
-        do_tick()
-        # release reset
-        swchb_input = swchb_input | RESET_MASK
-
-    if verbose:
-        print()
-
-    # Optional: use select button so select game mode
-
-    if verbose:
-        print("P1 action button to start game...")
-    # press left player action button
-    intpt4_input = intpt4_input & ~ACTION_MASK
-    do_tick()
-    # release left player action button
-    intpt4_input = intpt4_input | ACTION_MASK
-    if verbose:
-        print()
-
-    compare_ram_states_with_log(expected_ram_after_init, "after_init")
-
-    # compare_ram_states(ram, expected_ram_state_after_500)
-
-    if verbose:
-        print(f"Waiting for WAIT_TIME_GAME_START to run out ({255 - WAIT_TIME_GAME_START - 1} frames)...")
-
-    # Wait till actual game starts
-    for i in range(255 - WAIT_TIME_GAME_START - 1):
-        do_tick()
-    if verbose:
-        print()
-
-    compare_ram_states_with_log(expected_ram_before_start, "before_start")
-
-    # Now advance to game state 7 (GS_CHECK_FARMER_MOVEMENT) - main game
-    if verbose:
-        print("Advance to main game")
-    do_tick()
-    if verbose:
-        print()
-
-    compare_ram_states_with_log(expected_ram_after_start, "after_start")
-
-
-def get_score_number():
-    top = byte_to_bcd_number(ram[playerInformationValues])
-    mid = byte_to_bcd_number(ram[playerInformationValues + 1])
-    low = byte_to_bcd_number(ram[playerInformationValues + 2])
-
-    total = (top * 100 + mid) * 100 + low
-    return total
-
 
 
 has_hit_new_frame = False
 hit_new_frame_carry_status: int = 0
 
 
-def do_tick():
-    frame_log.clear()
-    global has_hit_new_frame
-    has_hit_new_frame = False
-    vertical_blank(hit_new_frame_carry_status)
-    assert has_hit_new_frame, "Tick did not hit new_frame! This is a serious error!"
+def set_debug_frame_number(value):
+    global _debug_frame_number
+    _debug_frame_number = value
 
+
+def get_frame_log() -> list[str]:
+    return frame_log
+
+
+def clear_frame_log():
+    frame_log.clear()
+
+
+def get_has_hit_new_frame() -> bool:
+    return has_hit_new_frame
+
+
+def set_has_hit_new_frame(value: bool):
+    global has_hit_new_frame
+    has_hit_new_frame = value
+
+
+def get_hit_new_frame_carry_status() -> hit_new_frame_carry_status:
+    return hit_new_frame_carry_status
+
+
+def get_ram() -> list[int]:
+    return ram
+
+
+def get_swcha_input() -> int:
+    return swcha_input
+
+
+def get_swchb_input() -> int:
+    return swchb_input
+
+
+def get_intpt4_input() -> int:
+    return intpt4_input
+
+
+def get_intpt5_input() -> int:
+    return intpt5_input
+
+
+def set_swcha_input(value):
+    global swcha_input
+    swcha_input = value
+
+
+def set_swchb_input(value):
+    global swchb_input
+    swchb_input = value
+
+
+def set_intpt4_input(value):
+    global intpt4_input
+    intpt4_input = value
+
+
+def set_intpt5_input(value):
+    global intpt5_input
+    intpt5_input = value
 
 
 # ================================ GAME LOGIC =================================
@@ -1402,7 +1242,7 @@ def done_move_duck_horizontally():
 
 def check_for_gopher_digging_tunnel():
     a = ram[currentPlayerScore]
-    if a != 0:  # score >= 100,000 ?
+    if a != 0:  # score >= 10,000
         a = ram[gopherVertMovementValues] & 0x7F
 
         if a == 0:
@@ -1675,8 +1515,6 @@ def check_to_plant_carrot(x):
         # Farmer not holding seed
         done_vertical_blank()
         return
-
-    print("Planting carrot at", x)
 
     # Plant carrot
     a = 1 << 2
@@ -2104,7 +1942,7 @@ def wait_for_duck_to_advance_game_state(carry):
 def advance_game_state_after_frame_count_expire():
     a = ram[frameCount]
 
-    carry = a >= 255
+    carry = 1 if a >= 255 else 0
     if a != 255:
         done_advance_game_state_after_frame_count_expire(carry)
         return
@@ -2132,10 +1970,10 @@ def display_game_selection():
     ram[digitGraphicPtrs + 1 + x] = a
 
     a = ram[gameSelection] & GAME_SELECTION_MASK
-    a = a >> 1
+    a = a << 1
     ram[tmpMulti2] = a
-    a = a >> 1
-    a = a >> 1
+    a = a << 1
+    a = a << 1
     a = adc(a, ram[tmpMulti2])
     a, carry = adc_with_carry(a, 10)
     ram[digitGraphicPtrs + 10] = a
@@ -2156,7 +1994,7 @@ def display_game_selection():
     ram[gameSelection] = byte_increment(ram[gameSelection])
     a = ram[gameSelection] & GAME_SELECTION_MASK
 
-    carry = a >= MAX_GAME_SELECTION + 1
+    carry = 1 if a >= MAX_GAME_SELECTION + 1 else 0
     if a >= MAX_GAME_SELECTION + 1:
         a = 0
         ram[gameSelection] = a
@@ -2214,7 +2052,7 @@ def display_player_number_information(carry):
     x = a
     a = (__one - __NumberFonts) & 0xFF  # <[one - NumberFonts]
 
-    carry = x >= PLAYER_TWO_ACTIVE
+    carry = 1 if x >= PLAYER_TWO_ACTIVE else 0
     if x == PLAYER_TWO_ACTIVE:
         a, carry = adc_with_carry(a, H_FONT)
 
@@ -2517,16 +2355,17 @@ def set_gopher_new_target_values(carry):
     ram[gopherHorizMovementValues] = a
     a = ram[currentPlayerScore]
 
-    if a != 0:
+    if a != 0:  # score >= 10,000
         very_smart_gopher()
         return
 
     a = swchb_value()
     x = ram[gameSelection]
 
-    if not is_negative(x):
-        # player two active
-        # move bit 6 to bit 7 (player 2 difficulty to player 1 difficulty)
+    if not is_negative(x):  # negative = player 2 active
+        # player one active
+        # move bit 6 to bit 7 - NORMALLY shifts player 2 difficulty to player 1 difficulty, however:
+        # TODO: Difficulty settings somehow got mixed up in Gopher!
         a = a << 1
 
     a = a & 0x80  # & 0b10000000
@@ -2646,7 +2485,7 @@ def check_for_farmer_bonking_gopher():
 
 def check_to_taunt_farmer():
     a = ram[gopherVertPos]
-    carry = a >= VERT_POS_GOPHER_ABOVE_GROUND
+    carry = 1 if a >= VERT_POS_GOPHER_ABOVE_GROUND else 0
     if a == VERT_POS_GOPHER_ABOVE_GROUND:
         disable_zone01_gopher_sprite(carry)
         return
@@ -2685,7 +2524,7 @@ def decrement_gopher_taunt_timer():
 
 def set_zone01_gopher_graphic_values():
     a = ram[gopherVertPos]
-    carry = a >= VERT_POS_GOPHER_UNDERGROUND + 7
+    carry = 1 if a >= VERT_POS_GOPHER_UNDERGROUND + 7 else 0
     if a < VERT_POS_GOPHER_UNDERGROUND + 7:
         disable_zone01_gopher_sprite(carry)
         return
@@ -2712,7 +2551,7 @@ def determine_gopher_nusiz_value(carry):
         disable_zone00_gopher_sprite(carry)
         return
 
-    carry = x >= VERT_POS_GOPHER_ABOVE_GROUND
+    carry = 1 if x >= VERT_POS_GOPHER_ABOVE_GROUND else 0
     if x == VERT_POS_GOPHER_ABOVE_GROUND:
         initiate_gopher_running_above_ground(carry)
         return
@@ -2771,12 +2610,12 @@ def set_zone02_gopher_graphic_values(carry):
         initiate_gopher_running_underground(carry)
         return
 
-    carry = a >= VERT_POS_GOPHER_UNDERGROUND + 7
+    carry = 1 if a >= VERT_POS_GOPHER_UNDERGROUND + 7 else 0
     if a < VERT_POS_GOPHER_UNDERGROUND + 7:
         initiate_gopher_running_underground(carry)
         return
 
-    carry = a >= VERT_POS_GOPHER_ABOVE_GROUND - 13
+    carry = 1 if a >= VERT_POS_GOPHER_ABOVE_GROUND - 13 else 0
     if a >= VERT_POS_GOPHER_ABOVE_GROUND - 13:
         animate_taunting_gopher_section(carry)
         return
@@ -2935,7 +2774,7 @@ def check_to_animate_crawling_gopher(a, x, carry):
     a = __RunningGopher_01_LOW
 
     # Calculate carry for random
-    carry = x >= VERT_POS_GOPHER_UNDERGROUND
+    carry = 1 if x >= VERT_POS_GOPHER_UNDERGROUND else 0
 
     if x != VERT_POS_GOPHER_UNDERGROUND:
         init_above_ground_running_gopher_sprite(a, carry)
@@ -3062,7 +2901,7 @@ def init_player_information_values(a, x, carry):
 # To show score after game ended (all carrots are gone for both players)
 def decrement_current_game_state():
     a = ram[frameCount]
-    carry = a >= 128
+    carry = 1 if a >= 128 else 0
     if a != 128:
         new_frame(carry)
         return
@@ -3474,7 +3313,7 @@ def set_digit_graphic_pointers_submodule(x, y):
         x = byte_increment(x)
         x = byte_increment(x)
 
-        carry = x >= ram[tmpEndGraphicPtrIdx]
+        carry = 1 if x >= ram[tmpEndGraphicPtrIdx] else 0
         if x == ram[tmpEndGraphicPtrIdx]:
             break
 
@@ -3540,4 +3379,3 @@ def intpt5_value() -> int:
     :return:
     """
     return intpt5_input
-
