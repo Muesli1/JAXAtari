@@ -1,57 +1,10 @@
 # https://atariage.com/2600/programming/2600_101/docs/onestep.html
 # http://www.6502.org/tutorials/6502opcodes.html#DFLAG
+from enum import Enum
 
 # https://www.randomterrain.com/atari-2600-memories-tutorial-andrew-davie-25.html
 
 from byte_util import *
-
-# == Visual Constants (NTSC) ==
-
-FPS = 60  # ~60 frames per second
-VBLANK_TIME = 40
-OVERSCAN_TIME = 31
-
-# == Colors ==
-
-BLACK = 0x00
-WHITE = 0x0E
-RED_ORANGE = 0x20
-BRICK_RED = 0x30
-RED = 0x40
-BLUE = 0x80
-OLIVE_GREEN = 0xB0
-GREEN = 0xC0
-LT_BROWN = 0xE0
-BROWN = 0xF0
-
-COLOR_PLAYER_1_SCORE = RED_ORANGE + 8
-COLOR_PLAYER_2_SCORE = OLIVE_GREEN + 12
-
-COLOR_FARMER_SHOES = BRICK_RED + 4
-COLOR_FARMER_PANTS = BLUE + 8
-COLOR_FARMER_SHIRT = GREEN + 6
-COLOR_FARMER = RED + 8
-COLOR_FARMER_HAT = LT_BROWN + 10
-COLOR_GOPHER = BROWN
-COLOR_CARROT_TOP = GREEN + 4
-COLOR_GRASS_01 = OLIVE_GREEN + 10
-COLOR_GRASS_02 = OLIVE_GREEN + 12
-COLOR_GRASS_03 = OLIVE_GREEN + 14
-COLOR_GARDEN_DIRT = RED_ORANGE + 12
-
-# == Game constants ==
-
-# Sprite height constants
-
-H_FONT = 10
-H_DUCK = 18
-H_FARMER = 50
-H_GRASS_KERNEL = 13
-H_CARROT = 22
-H_KERNEL_VERT_ADJUSTMENT = 41
-H_UNDERGROUND_GOPHER = 12
-H_GROUND_KERNEL_SECTION = 12
-H_RISING_GOPHER = 36
 
 # Frame horizontal constants
 
@@ -86,10 +39,6 @@ INIT_SEED_VERT_POS = 8
 
 ACTIVE_PLAYER_MASK = 0xF0
 GAME_SELECTION_MASK = 0x0F
-
-PLAYER_ONE_ACTIVE = 0 << 4
-PLAYER_TWO_ACTIVE = 15 << 4
-
 MAX_GAME_SELECTION = 3
 
 # Game State values
@@ -101,7 +50,7 @@ GS_DISPLAY_COMPANY_WAIT = 3
 GS_RESET_PLAYER_VARIABLES = 4
 GS_DISPLAY_GAME_SELECTION = 5
 GS_PAUSE_GAME_STATE = 6
-GS_CHECK_FARMER_MOVEMENT = 7
+GS_MAIN_GAME_LOOP = 7
 GS_GOPHER_STOLE_CARROT = 8
 GS_DUCK_WAIT = 9
 GS_INIT_GAME_FOR_ALTERNATE_PLAYER = 10
@@ -111,37 +60,39 @@ GS_DISPLAY_PLAYER_NUMBER = 13
 GS_PAUSE_FOR_ACTION_BUTTON = 14
 GS_WAIT_FOR_NEW_GAME = 15
 
-# Carrot constants
-
-CARROT_COARSE_POSITION_CYCLE_41 = 0
-CARROT_COARSE_POSITION_CYCLE_47 = 0x80
-CARROT_COARSE_POSITION_CYCLE_52 = 0x7F
-
 # Duck constants
 
-INIT_DUCK_ANIMATION_RATE = 32
-DUCK_ANIMATION_DOWN_WING = INIT_DUCK_ANIMATION_RATE - 8
+INIT_DUCK_ANIMATION_TIMER = 32
+DUCK_ANIMATION_DOWN_WING = INIT_DUCK_ANIMATION_TIMER - 8
 DUCK_ANIMATION_STATIONARY_WING = DUCK_ANIMATION_DOWN_WING - 8
 DUCK_ANIMATION_UP_WING = DUCK_ANIMATION_STATIONARY_WING - 8
 
 DUCK_HORIZ_DIR_MASK = 0b10000000  # Set, if moving left
 SEED_TARGET_HORIZ_POS_MASK = 0b01111111
-DUCK_TRAVEL_LEFT = 1 << 7
-DUCK_TRAVEL_RIGHT = 0 << 7
 
 # Gopher constants
 
-GOPHER_TARGET_MASK = 0x0F
+# 0b0000 1111 = Last 4 bits mean current vertical target. See GopherTargetVertPositions (0 meaning underground)
+GOPHER_VERT_TARGET_MASK = 0x0F
+# If set, does not change horizontal direction (check_to_change_gopher_horizontal_direction)
+# Is set, when horizontal direction change timer reaches zero
+# Also set, after digging a non-underground dirt
+# Also set after reaching vertical target that was non-underground
+# Checked, and set when "faking out"
+GOPHER_VERT_LOCKED_BIT = 0b10000000
+# Sets locked bit and target index to 8. (= VERT_POS_GOPHER_ABOVE_GROUND - 13). This helps "faking out" the player
+GOPHER_VERT_FAKING_TARGET_MASK = 0x88  # 0b10001000
 
+# 0b1000 0000 = First 1 bit means current direction of gopher, 1 = left, 0 = right
 GOPHER_HORIZ_DIR_MASK = 0b10000000
+# If set, the tunnel target mask is currently either 0, 1 or 2
+GOPHER_CARROT_TARGET_BIT = 0b00001000
+# Which tunnel to target (if carrot target bit is not set)
 GOPHER_TUNNEL_TARGET_MASK = 0b00000111
-GOPHER_CARROT_TARGET_MASK = 0b00001000
-
-GOPHER_TRAVEL_LEFT = 1 << 7
-GOPHER_TRAVEL_RIGHT = 0 << 7
-GOPHER_CARROT_TARGET = 1 << 3
-GOPHER_TARGET_LEFT_TUNNELS = 0 << 2
-GOPHER_TARGET_RIGHT_TUNNELS = 1 << 2
+# Which carrot is targeted (if carrot target bit is set)
+GOPHER_CARROT_STEAL_MASK = 0b00000011
+# If not set, can only target tunnel 0, 1, 2, 3 - otherwise only tunnel 0, 4, 5 (see HorizontalTargetValues)
+GOPHER_TARGET_RIGHT_TUNNELS_BIT = 0b00000100
 
 VERT_POS_GOPHER_UNDERGROUND = 0
 VERT_POS_GOPHER_ABOVE_GROUND = 35
@@ -166,7 +117,6 @@ WAIT_TIME_CARROT_STOLEN = 136  # wait 119 frames ~ 2 seconds
 
 END_AUDIO_TUNE = 0
 AUDIO_DURATION_MASK = 0xE0
-AUDIO_TONE_MASK = 0x1F
 
 # Playfield graphic constants
 
@@ -405,344 +355,45 @@ gopherTauntTimer = ds(1, "gopherTauntTimer")
 duckAttributes = ds(1, "duckAttributes")
 fallingSeedVertPos = ds(1, "fallingSeedVertPos")
 fallingSeedScanline = ds(1, "fallingSeedScanline")
-duckAnimationRate = ds(1, "duckAnimationRate")
+duckAnimationTimer = ds(1, "duckAnimationTimer")
 fallingSeedHorizPos = ds(1, "fallingSeedHorizPos")
 heldSeedDecayingTimer = ds(1, "heldSeedDecayingTimer")
 
 # === ATARI / TIA CONSTANTS ===
 
-HMOVE_L7 = 0x70
-HMOVE_L6 = 0x60
-HMOVE_L5 = 0x50
-HMOVE_L4 = 0x40
-HMOVE_L3 = 0x30
-HMOVE_L2 = 0x20
-HMOVE_L1 = 0x10
-HMOVE_0 = 0x00
-HMOVE_R1 = 0xF0
-HMOVE_R2 = 0xE0
-HMOVE_R3 = 0xD0
-HMOVE_R4 = 0xC0
-HMOVE_R5 = 0xB0
-HMOVE_R6 = 0xA0
-HMOVE_R7 = 0x90
-HMOVE_R8 = 0x80
-
-# values for ENAMx and ENABL
-DISABLE_BM = 0b00
-ENABLE_BM = 0b10
-
-# values for RESMPx
-LOCK_MISSILE = 0b10
-UNLOCK_MISSILE = 0b00
-
 # values for REFPx:
 NO_REFLECT = 0b0000
 REFLECT = 0b1000
 
-# values for NUSIZx:
-ONE_COPY = 0b000
-TWO_COPIES = 0b001
-TWO_MED_COPIES = 0b010
-THREE_COPIES = 0b011
-TWO_WIDE_COPIES = 0b100
-DOUBLE_SIZE = 0b101
-THREE_MED_COPIES = 0b110
-QUAD_SIZE = 0b111
-MSBL_SIZE1 = 0b000000
-MSBL_SIZE2 = 0b010000
-MSBL_SIZE4 = 0b100000
-MSBL_SIZE8 = 0b110000
-
-# values for CTRLPF:
-PF_PRIORITY = 0b100
-PF_SCORE = 0b10
-PF_REFLECT = 0b01
-PF_NO_REFLECT = 0b00
-
 # values for SWCHB
 P1_DIFF_MASK = 0b10000000
 P0_DIFF_MASK = 0b01000000
-BW_MASK = 0b00001000
 SELECT_MASK = 0b00000010
 RESET_MASK = 0b00000001
-
-VERTICAL_DELAY = 1
 
 # SWCHA joystick bits:
 MOVE_RIGHT = 0b01111111
 MOVE_LEFT = 0b10111111
-MOVE_DOWN = 0b11011111
-MOVE_UP = 0b11101111
-P0_JOYSTICK_MASK = 0b11110000
-P1_JOYSTICK_MASK = 0b00001111
-P0_NO_MOVE = P0_JOYSTICK_MASK
-P1_NO_MOVE = P1_JOYSTICK_MASK
-NO_MOVE = P0_NO_MOVE | P1_NO_MOVE
-P0_HORIZ_MOVE = MOVE_RIGHT & MOVE_LEFT & P0_NO_MOVE
-P0_VERT_MOVE = MOVE_UP & MOVE_DOWN & P0_NO_MOVE
-P1_HORIZ_MOVE = ((MOVE_RIGHT & MOVE_LEFT) >> 4) & P1_NO_MOVE
-P1_VERT_MOVE = ((MOVE_UP & MOVE_DOWN) >> 4) & P1_NO_MOVE
-
-# SWCHA paddle bits:
-P0_TRIGGER_PRESSED = 0b01111111
-P1_TRIGGER_PRESSED = 0b10111111
-P2_TRIGGER_PRESSED = 0b11110111
-P3_TRIGGER_PRESSED = 0b11111011
-
-# values for VBLANK:
-DUMP_PORTS = 0b10000000
-ENABLE_LATCHES = 0b01000000
-DISABLE_TIA = 0b00000010
-ENABLE_TIA = 0b00000000
-
-# values for VSYNC:
-START_VERT_SYNC = 0b10
-STOP_VERT_SYNC = 0b00
-
-COLUPF = 14
-
-# MOVE_RIGHT = ~(1 << 4) & 0xFF  # confirmed
-# MOVE_LEFT = ~(1 << 5) & 0xFF  # confirmed
 ACTION_MASK = 1 << 7
 
 # === ADDITIONAL MEMORY ADDRESSES ==
 
 
-__PlayerNumberLiteralSprites = 0xFBBD
-__PlayerNumberLiteralSprites_LOW = 0xBD
-__PlayerNumberLiteralSprites_HIGH = 0xFB
-__PlayerNumberLiteral_00 = 0xFBBD
-__PlayerNumberLiteral_00_LOW = 0xBD
-__PlayerNumberLiteral_00_HIGH = 0xFB
-__PlayerNumber_01 = 0xFBC7
-__PlayerNumber_01_LOW = 0xC7
-__PlayerNumber_01_HIGH = 0xFB
-__PlayerNumber_02 = 0xFBD1
-__PlayerNumber_02_LOW = 0xD1
-__PlayerNumber_02_HIGH = 0xFB
-__PlayerNumber_03 = 0xFBDB
-__PlayerNumber_03_LOW = 0xDB
-__PlayerNumber_03_HIGH = 0xFB
-__PlayerNumber_04 = 0xFBE5
-__PlayerNumber_04_LOW = 0xE5
-__PlayerNumber_04_HIGH = 0xFB
-__HorizontalTargetValues = 0xFBEF
-__HorizontalTargetValues_LOW = 0xEF
-__HorizontalTargetValues_HIGH = 0xFB
-__NumberFonts = 0xFC00
-__NumberFonts_LOW = 0x00
-__NumberFonts_HIGH = 0xFC
-__zero = 0xFC00
-__zero_LOW = 0x00
-__zero_HIGH = 0xFC
-__one = 0xFC0A
-__one_LOW = 0x0A
-__one_HIGH = 0xFC
-__two = 0xFC14
-__two_LOW = 0x14
-__two_HIGH = 0xFC
-__three = 0xFC1E
-__three_LOW = 0x1E
-__three_HIGH = 0xFC
-__four = 0xFC28
-__four_LOW = 0x28
-__four_HIGH = 0xFC
-__five = 0xFC32
-__five_LOW = 0x32
-__five_HIGH = 0xFC
-__six = 0xFC3C
-__six_LOW = 0x3C
-__six_HIGH = 0xFC
-__seven = 0xFC46
-__seven_LOW = 0x46
-__seven_HIGH = 0xFC
-__eight = 0xFC50
-__eight_LOW = 0x50
-__eight_HIGH = 0xFC
-__nine = 0xFC5A
-__nine_LOW = 0x5A
-__nine_HIGH = 0xFC
-__USGamesLiteral = 0xFC64
-__USGamesLiteral_LOW = 0x64
-__USGamesLiteral_HIGH = 0xFC
-__USGamesLiteral_00 = 0xFC64
-__USGamesLiteral_00_LOW = 0x64
-__USGamesLiteral_00_HIGH = 0xFC
-__USGamesLiteral_01 = 0xFC6E
-__USGamesLiteral_01_LOW = 0x6E
-__USGamesLiteral_01_HIGH = 0xFC
-__USGamesLiteral_02 = 0xFC78
-__USGamesLiteral_02_LOW = 0x78
-__USGamesLiteral_02_HIGH = 0xFC
-__USGamesLiteral_03 = 0xFC82
-__USGamesLiteral_03_LOW = 0x82
-__USGamesLiteral_03_HIGH = 0xFC
-__USGamesLiteral_04 = 0xFC8C
-__USGamesLiteral_04_LOW = 0x8C
-__USGamesLiteral_04_HIGH = 0xFC
-__USGamesLiteral_05 = 0xFC96
-__USGamesLiteral_05_LOW = 0x96
-__USGamesLiteral_05_HIGH = 0xFC
-__GameSelectionLiteralSprites = 0xFCA0
-__GameSelectionLiteralSprites_LOW = 0xA0
-__GameSelectionLiteralSprites_HIGH = 0xFC
-__GameSelection_00 = 0xFCA0
-__GameSelection_00_LOW = 0xA0
-__GameSelection_00_HIGH = 0xFC
-__GameSelection_01 = 0xFCAA
-__GameSelection_01_LOW = 0xAA
-__GameSelection_01_HIGH = 0xFC
-__GameSelection_02 = 0xFCB4
-__GameSelection_02_LOW = 0xB4
-__GameSelection_02_HIGH = 0xFC
-__GameSelection_03 = 0xFCBE
-__GameSelection_03_LOW = 0xBE
-__GameSelection_03_HIGH = 0xFC
-__FarmerColorValues = 0xFCC9
-__FarmerColorValues_LOW = 0xC9
-__FarmerColorValues_HIGH = 0xFC
-__Blank = 0xFD00
-__Blank_LOW = 0x00
-__Blank_HIGH = 0xFD
 __AudioValues = 0xFD0A
-__AudioValues_LOW = 0x0A
-__AudioValues_HIGH = 0xFD
+
 __StartingThemeAudioValues_00 = 0xFD0A
-__StartingThemeAudioValues_00_LOW = 0x0A
-__StartingThemeAudioValues_00_HIGH = 0xFD
 __StartingThemeAudioValues_01 = 0xFD29
-__StartingThemeAudioValues_01_LOW = 0x29
-__StartingThemeAudioValues_01_HIGH = 0xFD
 __BonkGopherAudioValues = 0xFD43
-__BonkGopherAudioValues_LOW = 0x43
-__BonkGopherAudioValues_HIGH = 0xFD
 __GopherTauntAudioValues = 0xFD4A
-__GopherTauntAudioValues_LOW = 0x4A
-__GopherTauntAudioValues_HIGH = 0xFD
 __StolenCarrotAudioValues = 0xFD61
-__StolenCarrotAudioValues_LOW = 0x61
-__StolenCarrotAudioValues_HIGH = 0xFD
 __DigTunnelAudioValues = 0xFD7A
-__DigTunnelAudioValues_LOW = 0x7A
-__DigTunnelAudioValues_HIGH = 0xFD
 __FillTunnelAudioValues = 0xFD7E
-__FillTunnelAudioValues_LOW = 0x7E
-__FillTunnelAudioValues_HIGH = 0xFD
 __DuckQuackingAudioValues = 0xFD84
-__DuckQuackingAudioValues_LOW = 0x84
-__DuckQuackingAudioValues_HIGH = 0xFD
 __GameOverThemeAudioValues_00 = 0xFD8C
-__GameOverThemeAudioValues_00_LOW = 0x8C
-__GameOverThemeAudioValues_00_HIGH = 0xFD
 __GameOverThemeAudioValues_01 = 0xFD9F
-__GameOverThemeAudioValues_01_LOW = 0x9F
-__GameOverThemeAudioValues_01_HIGH = 0xFD
-__CarrotGraphics = 0xFDB2
-__CarrotGraphics_LOW = 0xB2
-__CarrotGraphics_HIGH = 0xFD
-__CarrotTopGraphics = 0xFDC8
-__CarrotTopGraphics_LOW = 0xC8
-__CarrotTopGraphics_HIGH = 0xFD
-__CarrotColorValues = 0xFDD5
-__CarrotColorValues_LOW = 0xD5
-__CarrotColorValues_HIGH = 0xFD
-__GrassColorValues = 0xFDEB
-__GrassColorValues_LOW = 0xEB
-__GrassColorValues_HIGH = 0xFD
-__GopherTargetVertPositions = 0xFDF8
-__GopherTargetVertPositions_LOW = 0xF8
-__GopherTargetVertPositions_HIGH = 0xFD
-__CarrotAttributeValues = 0xFE08
-__CarrotAttributeValues_LOW = 0x08
-__CarrotAttributeValues_HIGH = 0xFE
-__FarmerSprites = 0xFE1D
-__FarmerSprites_LOW = 0x1D
-__FarmerSprites_HIGH = 0xFE
-__FarmerSprite_00 = 0xFE1D
-__FarmerSprite_00_LOW = 0x1D
-__FarmerSprite_00_HIGH = 0xFE
-__FarmerSprite_01 = 0xFE50
-__FarmerSprite_01_LOW = 0x50
-__FarmerSprite_01_HIGH = 0xFE
-__FarmerSprite_02 = 0xFE83
-__FarmerSprite_02_LOW = 0x83
-__FarmerSprite_02_HIGH = 0xFE
-__DuckWingsStationaryGraphics = 0xFEB6
-__DuckWingsStationaryGraphics_LOW = 0xB6
-__DuckWingsStationaryGraphics_HIGH = 0xFE
-__DuckFaceGraphics = 0xFEC9
-__DuckFaceGraphics_LOW = 0xC9
-__DuckFaceGraphics_HIGH = 0xFE
-__DuckWingsDownGraphics = 0xFEDC
-__DuckWingsDownGraphics_LOW = 0xDC
-__DuckWingsDownGraphics_HIGH = 0xFE
-__DuckWingsUpGraphics = 0xFEEF
-__DuckWingsUpGraphics_LOW = 0xEF
-__DuckWingsUpGraphics_HIGH = 0xFE
-__DuckColorValues = 0xFF03
-__DuckColorValues_LOW = 0x03
-__DuckColorValues_HIGH = 0xFF
-__DuckLeftColorValues = 0xFF03
-__DuckLeftColorValues_LOW = 0x03
-__DuckLeftColorValues_HIGH = 0xFF
-__DuckRightColorValues = 0xFF16
-__DuckRightColorValues_LOW = 0x16
-__DuckRightColorValues_HIGH = 0xFF
-__CopyrightLiteralSprites = 0xFF28
-__CopyrightLiteralSprites_LOW = 0x28
-__CopyrightLiteralSprites_HIGH = 0xFF
-__Copyright_00 = 0xFF28
-__Copyright_00_LOW = 0x28
-__Copyright_00_HIGH = 0xFF
-__Copyright_01 = 0xFF32
-__Copyright_01_LOW = 0x32
-__Copyright_01_HIGH = 0xFF
-__Copyright_02 = 0xFF3C
-__Copyright_02_LOW = 0x3C
-__Copyright_02_HIGH = 0xFF
-__Copyright_03 = 0xFF46
-__Copyright_03_LOW = 0x46
-__Copyright_03_HIGH = 0xFF
-__Copyright_04 = 0xFF50
-__Copyright_04_LOW = 0x50
-__Copyright_04_HIGH = 0xFF
-__Copyright_05 = 0xFF5A
-__Copyright_05_LOW = 0x5A
-__Copyright_05_HIGH = 0xFF
-__RisingGopherSprite = 0xFF64
-__RisingGopherSprite_LOW = 0x64
-__RisingGopherSprite_HIGH = 0xFF
-__NullSprite = 0xFF87
-__NullSprite_LOW = 0x87
-__NullSprite_HIGH = 0xFF
-__NullRunningGopher = 0xFF9D
-__NullRunningGopher_LOW = 0x9D
-__NullRunningGopher_HIGH = 0xFF
-__RunningGopher_00 = 0xFFAA
-__RunningGopher_00_LOW = 0xAA
-__RunningGopher_00_HIGH = 0xFF
-__RunningGopher_01 = 0xFFBA
-__RunningGopher_01_LOW = 0xBA
-__RunningGopher_01_HIGH = 0xFF
-__GopherTauntSprite_00 = 0xFFCA
-__GopherTauntSprite_00_LOW = 0xCA
-__GopherTauntSprite_00_HIGH = 0xFF
-__GopherTauntSprite_01 = 0xFFD9
-__GopherTauntSprite_01_LOW = 0xD9
-__GopherTauntSprite_01_HIGH = 0xFF
 
 # ================ DATA TABLES ========
 
-CarrotAttributeValues = [
-    CARROT_COARSE_POSITION_CYCLE_52, HMOVE_L1, ONE_COPY,
-    CARROT_COARSE_POSITION_CYCLE_47, HMOVE_L2, ONE_COPY,
-    CARROT_COARSE_POSITION_CYCLE_47, HMOVE_L2, TWO_COPIES,
-    CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0, ONE_COPY,
-    CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0, TWO_MED_COPIES,
-    CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0, TWO_COPIES,
-    CARROT_COARSE_POSITION_CYCLE_41, HMOVE_0, THREE_COPIES
-]
 
 HorizontalTargetValues = [
     HORIZ_POS_HOLE_00, HORIZ_POS_HOLE_01,
@@ -761,24 +412,25 @@ DirtMaskingBits = [
     1 << 0, 1 << 1, 1 << 2, 1 << 3, 1 << 4, 1 << 5, 1 << 6, 1 << 7
 ]
 
+VERT_POS_GOPHER_TAUNTING = VERT_POS_GOPHER_ABOVE_GROUND - 1
 GopherTargetVertPositions = [
     VERT_POS_GOPHER_UNDERGROUND,
     VERT_POS_GOPHER_UNDERGROUND + 7,
     VERT_POS_GOPHER_UNDERGROUND + 14,
     VERT_POS_GOPHER_ABOVE_GROUND - 13,
-    VERT_POS_GOPHER_ABOVE_GROUND - 1,
-    VERT_POS_GOPHER_ABOVE_GROUND,
+    VERT_POS_GOPHER_TAUNTING,  # taunting
+    VERT_POS_GOPHER_ABOVE_GROUND,  # stealing
     VERT_POS_GOPHER_UNDERGROUND + 7,
     VERT_POS_GOPHER_UNDERGROUND + 14,
 
     VERT_POS_GOPHER_ABOVE_GROUND - 13,
-    VERT_POS_GOPHER_ABOVE_GROUND,
-    VERT_POS_GOPHER_ABOVE_GROUND - 1,
+    VERT_POS_GOPHER_ABOVE_GROUND,  # stealing
+    VERT_POS_GOPHER_TAUNTING,  # taunting
     VERT_POS_GOPHER_UNDERGROUND + 14,
     VERT_POS_GOPHER_ABOVE_GROUND - 13,
-    VERT_POS_GOPHER_ABOVE_GROUND,
-    VERT_POS_GOPHER_ABOVE_GROUND - 1,
-    VERT_POS_GOPHER_ABOVE_GROUND
+    VERT_POS_GOPHER_ABOVE_GROUND,  # stealing
+    VERT_POS_GOPHER_TAUNTING,  # taunting
+    VERT_POS_GOPHER_ABOVE_GROUND  # stealing
 ]
 
 StartingThemeAudioValues_00 = [
@@ -937,2396 +589,1204 @@ def set_intpt5_input(value):
     intpt5_input = value
 
 
+# ================================ RENDER STATE =================================
+
+class DuckWingRenderingState(Enum):
+    DISABLED = 0
+    STATIONARY = 1
+    DOWN = 2
+    UP = 3
+
+
+class DuckFaceRenderingState(Enum):
+    DISABLED = 0
+    FACE = 1
+
+
+class FarmerRenderingState(Enum):
+    SPRITE_00 = 0
+    SPRITE_01 = 1
+    SPRITE_02 = 2
+
+
+class GopherRenderingStateZone00(Enum):
+    NULL_RUNNING = 0
+    NULL_SPRITE = 1
+    RISING_SPRITE_MATCHING = 2
+    RUNNING_00 = 3
+    RUNNING_01 = 4
+    TAUNT_SPRITE_00 = 5
+    TAUNT_SPRITE_01 = 6
+
+
+class GopherRenderingStateZone01(Enum):
+    NULL_SPRITE = 0
+    RISING_SPRITE = 1
+
+
+class GopherRenderingStateZone02(Enum):
+    NULL_SPRITE = 0
+    RUNNING_00 = 1
+    RUNNING_01 = 2
+    RISING_SPIRE_MATCHING = 3
+
+
+class DigitGraphic(Enum):
+    COPYRIGHT = 0
+    COMPANY = 1
+    GAME_SELECTION = 2
+    PLAYER_NUMBER = 3
+
+
+class RenderState:
+
+    def __init__(self):
+        super().__init__()
+        self.duck_wings = DuckWingRenderingState.DISABLED
+        self.duck_face = DuckFaceRenderingState.DISABLED
+        self.farmer = FarmerRenderingState.SPRITE_00
+        self.digit_graphic = DigitGraphic.COPYRIGHT
+
+        self.gopher_rising_px_start = 0
+
+        self.gopher_00 = GopherRenderingStateZone00.NULL_RUNNING
+        self.gopher_01 = GopherRenderingStateZone01.NULL_SPRITE
+        self.gopher_02 = GopherRenderingStateZone02.RUNNING_00
+
+
+render_state = RenderState()
+
+
+def get_render_state() -> RenderState:
+    return render_state
+
+
 # ================================ GAME LOGIC =================================
 
-
 def start():
-    # a and x are set to 0
-    # memory from 0xFF (255) to 0 are cleared (set to 0)
-    # this includes the full RAM state starting at 0x80
-    # VSYNC = 0 (most likely meaning the first memory address?)
-
     for i in range(len(ram)):
         ram[i] = 0
-    # ram[0:128] = 0
-
-    # Set stack to 0xFF via txs
-
-    # Jump
-    overscan()
+    update_game_state()
 
 
-def vertical_blank(carry):
-    while True:
-        # In assembly: Setup blank timer
-        # Not needed for python
+def update_game(carry):
+    # Increment frameCount
+    ram[frameCount] = byte_increment(ram[frameCount])
 
-        """
-        lda #STOP_VERT_SYNC
-       sta WSYNC                        ; wait for next scan line
-       sta VSYNC                        ; end vertical sync (D1 = 0)
-       lda #VBLANK_TIME
-       sta TIM64T                       ; set timer for vertical blank time
-        """
+    if flip_byte(swcha_value()) != 0:
+        # Reset game idle timer on any joystick input
+        ram[gameIdleTimer] = 0
 
-        # Increment frameCount
-        ram[frameCount] = byte_increment(ram[frameCount])
-
-        # Read and flip joystick values
-        joystick_values = swcha_value()
-        flipped_joystick_values = flip_byte(joystick_values)
-
-        # pressed = 0, so with flipped bytes, the result would only be 0 if no joystick (neither p1 nor p2) is pressed
-        if flipped_joystick_values != 0:
-            # Reset game idle timer on press
-            ram[gameIdleTimer] = 0
-
-        a = ram[gameIdleTimer]
-
-        # print("idleTimer =", ram[gameIdleTimer], "| frameCount =", ram[frameCount])
-
-        if is_msb_set(a):
-            # Continue loop - this simulates jumping back to VerticalBlank
-            continue
-
-        if ram[frameCount] == 0:
-            ram[gameIdleTimer] = byte_increment(ram[gameIdleTimer])
-
-        carry = play_game_audio_sounds(carry)
-        next_random(carry)
-
-        a = ram[carrotPattern]
-
-        if a != 0:
-            # Jump
-            determine_carrot_attribute_values(a)
-
-            # Will also end up in animate_duck_wings after determining carrot attribute values
-            return
-
-        # NOTE: Code past this point this will never get executed, since this only happens AFTER game over
-
-        # Load null sprites into carrot graphics
-        a = __NullSprite_LOW
-        ram[carrotTopGraphicPtrs] = a
-        ram[carrotGraphicsPtrs] = a
-        a = __NullSprite_HIGH
-        ram[carrotTopGraphicPtrs + 1] = a
-        ram[carrotGraphicsPtrs + 1] = a
-
-        # Jump
-        animate_duck_wings()
+    # If idled for too long, wait for joystick input
+    if ram[gameIdleTimer] >= 128:
         return
 
-    # Never reached
+    # Increase gameIdleTimer every 256 frames
+    if ram[frameCount] == 0:
+        ram[gameIdleTimer] += 1
+
+    carry = play_game_audio(carry)
+    next_random(carry)
+
+    update_duck()
+    update_seed()
+
+    if ram[gameState] == GS_MAIN_GAME_LOOP:
+        # When running main game loop
+        update_gopher_digging()
+        update_farmer()
+
+    check_for_reset_button_pressed()
+    update_game_state()
 
 
-def determine_carrot_attribute_values(a):
-    a = (a << 1) & 0xFF  # asl
-    a = (a + ram[carrotPattern]) & 0xFF
+def update_duck():
+    animation_timer = ram[duckAnimationTimer]
 
-    y = a
-    y = byte_decrement(y)
-    x = 3 - 1
-
-    while True:
-        a = CarrotAttributeValues[y]  # ROM
-        ram[displayingCarrotAttributes + x] = a
-
-        y = byte_decrement(y)
-        x = byte_decrement(x)
-
-        if is_msb_set(x):
-            break
-
-    # Fall through
-    animate_duck_wings()
-
-
-def animate_duck_wings():
-    x = ram[duckAnimationRate]
-
-    if x == 0:
+    if animation_timer == 0:
         disable_duck()
         return
 
-    x = byte_decrement(x)
-    if x == 0:
-        a = INIT_DUCK_ANIMATION_RATE
-        ram[duckAnimationRate] = a
-        a = __DuckWingsStationaryGraphics_LOW
-        ram[duckLeftGraphicPtrs] = a
+    animation_timer -= 1
 
-        check_to_play_duck_quacking()
-        return
+    if animation_timer == 0:
+        ram[duckAnimationTimer] = INIT_DUCK_ANIMATION_TIMER
+        render_state.duck_wings = DuckWingRenderingState.STATIONARY
     else:
-        ram[duckAnimationRate] = x
+        ram[duckAnimationTimer] = animation_timer
 
-        if x == DUCK_ANIMATION_DOWN_WING:
-            a = __DuckWingsDownGraphics_LOW
-        elif x == DUCK_ANIMATION_STATIONARY_WING:
-            a = __DuckWingsStationaryGraphics_LOW
-        elif x == DUCK_ANIMATION_UP_WING:
-            a = __DuckWingsUpGraphics_LOW
-        else:
-            check_to_play_duck_quacking()
-            return
+        if animation_timer == DUCK_ANIMATION_DOWN_WING:
+            render_state.duck_wings = DuckWingRenderingState.DOWN
+        elif animation_timer == DUCK_ANIMATION_STATIONARY_WING:
+            render_state.duck_wings = DuckWingRenderingState.STATIONARY
+        elif animation_timer == DUCK_ANIMATION_UP_WING:
+            render_state.duck_wings = DuckWingRenderingState.UP
 
-        ram[duckLeftGraphicPtrs] = a
+    # Quack
+    if ram[frameCount] & 0x1F == 0:
+        set_game_audio_values(__DuckQuackingAudioValues - __AudioValues)
 
-        # Fall through
-        check_to_play_duck_quacking()
-
-
-def check_to_play_duck_quacking():
-    a = ram[frameCount] & 0x1F
-    if a != 0:
-        move_duck_horizontally()
-        return
+    if is_msb_set(ram[duckAttributes]):
+        # move left
+        ram[duckHorizPos] -= 1
     else:
-        # x = <[DuckQuackingAudioValues - AudioValues]
-        set_game_audio_values((__DuckQuackingAudioValues - __AudioValues) & 0xFF)
+        # move right
+        ram[duckHorizPos] += 1
 
-    # Fall through
-    move_duck_horizontally()
-
-
-def move_duck_horizontally():
-    a = ram[duckAttributes]
-
-    if is_msb_set(a):
-        move_duck_left()
-        return
-
-    ram[duckHorizPos] = byte_increment(ram[duckHorizPos])
-    a = ram[duckHorizPos]
-
-    if a < XMAX_DUCK:  # BCC
-        move_falling_seed()
-        return
-
-    # Fall through
-    disable_duck()
+    if ram[duckHorizPos] < XMIN_DUCK or ram[duckHorizPos] >= XMAX_DUCK:
+        disable_duck()
 
 
 def disable_duck():
-    a = __NullSprite_LOW
-    ram[duckLeftGraphicPtrs] = a
-    ram[duckRightGraphicPtrs] = a
-    a = __NullSprite_HIGH
-    ram[duckLeftGraphicPtrs + 1] = a
-    ram[duckRightGraphicPtrs + 1] = a
-
-    ram[duckAnimationRate] = 0
-
-    # Unconditional branch
-    move_falling_seed()
+    render_state.duck_wings = DuckWingRenderingState.DISABLED
+    render_state.duck_face = DuckFaceRenderingState.DISABLED
+    ram[duckAnimationTimer] = 0
 
 
-def move_duck_left():
-    ram[duckHorizPos] = byte_decrement(ram[duckHorizPos])
-    a = ram[duckHorizPos]
-
-    if a < XMIN_DUCK:
-        disable_duck()
-        return
-
-    # Fall through
-    move_falling_seed()
-
-
-# Actually moves seed horizontally together with duck
-def move_falling_seed():
-    a = ram[fallingSeedVertPos]
-
-    if is_msb_set(a):
+def update_seed():
+    if is_msb_set(ram[fallingSeedVertPos]):
         # No seed
-        done_move_duck_horizontally()
         return
 
-    a = ram[heldSeedDecayingTimer]
-    if a != 0:
-        set_farmer_holding_seed()
+    if ram[heldSeedDecayingTimer] != 0:
+        # Seed is held by farmer
+        update_seed_held_by_farmer()
         return
 
-    a = ram[duckAttributes] & SEED_TARGET_HORIZ_POS_MASK
-    if a == ram[fallingSeedHorizPos]:
-        dropping_seed()
+    # Seed reached target position, either already falling or was just moved there by the duck
+    if ram[duckAttributes] & SEED_TARGET_HORIZ_POS_MASK == ram[fallingSeedHorizPos]:
+        update_falling_seed()
         return
 
-    # Note: !! Move left or right once, just using clever trick with branching !!
-
-    x = ram[duckAttributes]
-    if not is_msb_set(x):
-        # Moving right
-        ram[fallingSeedHorizPos] = byte_increment(ram[fallingSeedHorizPos])
-    else:
+    # Seed is still moving with duck
+    if is_msb_set(ram[duckAttributes]):
         # Moving left
-        ram[fallingSeedHorizPos] = byte_decrement(ram[fallingSeedHorizPos])
+        ram[fallingSeedHorizPos] -= 1
+    else:
+        # Moving right
+        ram[fallingSeedHorizPos] += 1
 
-    # Jump
-    done_move_duck_horizontally()
+
+SEED_GROUND_LEVEL = 107
+# Exclusive
+SEED_MAX_CATCHING_Y = 87
+# Inclusive
+SEED_MIN_CATCHING_Y = 83
 
 
-def dropping_seed():
-    ram[fallingSeedVertPos] = byte_increment(ram[fallingSeedVertPos])
-    a = ram[fallingSeedVertPos]
+def update_falling_seed():
+    # Seed falls down
+    new_seed_y = ram[fallingSeedVertPos] + 1
+    ram[fallingSeedVertPos] = new_seed_y
 
-    if a == (H_DUCK + H_KERNEL_VERT_ADJUSTMENT + H_FARMER - 2):
+    if new_seed_y == SEED_GROUND_LEVEL:
         # Seed reached ground
-        disable_falling_seed()
+        ram[fallingSeedVertPos] = DISABLE_SEED
+    elif SEED_MIN_CATCHING_Y <= new_seed_y < SEED_MAX_CATCHING_Y and \
+            abs(ram[fallingSeedHorizPos] - ram[farmerHorizPos]) < 5:
+        # Caught seed!
+        ram[heldSeedDecayingTimer] = INIT_DECAYING_TIMER_VALUE
+
+
+def update_seed_held_by_farmer():
+    # Move seed with farmer
+    ram[fallingSeedHorizPos] = ram[farmerHorizPos]
+    ram[heldSeedDecayingTimer] -= 1
+
+    if ram[heldSeedDecayingTimer] == 0:
+        # Seed decayed
+        ram[fallingSeedVertPos] = DISABLE_SEED
+
+
+def update_gopher_digging():
+    # "Fake out" player more often if he has a high score
+    if ram[currentPlayerScore] != 0:  # score >= 10,000
+        if ram[gopherVertMovementValues] & (~GOPHER_VERT_LOCKED_BIT & 0xFF) == 0:
+            ram[gopherVertMovementValues] |= GOPHER_VERT_FAKING_TARGET_MASK
+
+    if ram[gopherVertPos] == VERT_POS_GOPHER_UNDERGROUND:
+        # Underground tunnel
+        # If facing right, add width value to dig to right
+        gopher_digging(ram[gopherHorizPos] + (8 if ram[gopherReflectState] == REFLECT else 0))
+    elif ram[gopherVertPos] != VERT_POS_GOPHER_ABOVE_GROUND:
+        # Moving up or down currently, dig at tunnel target mask
+        gopher_digging(HorizontalTargetValues[ram[gopherHorizMovementValues] & GOPHER_TUNNEL_TARGET_MASK])
+
+
+y_offset_map = [_4thGardenDirtValues - gardenDirtValues]
+for y in range(1, 7):
+    y_offset_map.append(_3rdGardenDirtValues - gardenDirtValues)
+for y in range(7, 14):
+    y_offset_map.append(_2ndGardenDirtValues - gardenDirtValues)
+for y in range(14, VERT_POS_GOPHER_ABOVE_GROUND):
+    y_offset_map.append(_1stGardenDirtValues - gardenDirtValues)
+
+
+def gopher_digging(x_pos):
+    x_byte_offset, dirt_mask_index = calculate_x_dirt_memory_offset(x_pos)
+    byte_offset = x_byte_offset + y_offset_map[ram[gopherVertPos]]
+
+    if DirtMaskingBits[dirt_mask_index] & ram[gardenDirtValues + byte_offset] != 0:
+        # Dirt already removed
         return
 
-    if a < (H_DUCK + H_KERNEL_VERT_ADJUSTMENT + 24):
-        done_move_duck_horizontally()
-        return
+    # Set bit for removed dirt
+    ram[gardenDirtValues + byte_offset] |= DirtMaskingBits[dirt_mask_index]
 
-    if a >= (H_DUCK + H_KERNEL_VERT_ADJUSTMENT + 28):
-        done_move_duck_horizontally()
-        return
+    set_game_audio_values(__DigTunnelAudioValues - __AudioValues)
 
-    # Seed in very specific pixel range above the ground
-    a = ram[farmerHorizPos]
+    if ram[gopherVertPos] != VERT_POS_GOPHER_UNDERGROUND:
+        # Up or down movement, removing adjacent dirt as well
+        adjacent_dirt_mask = DirtMaskingBits[dirt_mask_index + 1]
 
-    # Calculate absolute difference between farmerHorizPos and fallingSeedHorizPos
-    a = sbc(a, ram[fallingSeedHorizPos])
-    if not is_positive(a):
-        a = flip_byte(a)
-        a = adc(a, 1)
+        if is_negative(adjacent_dirt_mask) or adjacent_dirt_mask == 1:
+            byte_offset += 1
 
-    if a >= 5:
-        # Did not catch seed
-        done_move_duck_horizontally()
-        return
+        # Set bit for adjacent removed dirt
+        ram[gardenDirtValues + byte_offset] |= adjacent_dirt_mask
 
-    a = INIT_DECAYING_TIMER_VALUE
-    ram[heldSeedDecayingTimer] = a
-
-    # Unconditional branch
-    done_move_duck_horizontally()
-
-
-def set_farmer_holding_seed():
-    a = ram[farmerHorizPos]
-    ram[fallingSeedHorizPos] = a
-    dec_result = byte_decrement(ram[heldSeedDecayingTimer])
-    ram[heldSeedDecayingTimer] = dec_result
-
-    if dec_result != 0:
-        done_move_duck_horizontally()
-        return
-
-    # Fall through
-    disable_falling_seed()
-
-
-def disable_falling_seed():
-    # Seed decayed
-    a = DISABLE_SEED
-    ram[fallingSeedVertPos] = a
-
-    # Fall through
-    done_move_duck_horizontally()
-
-
-def done_move_duck_horizontally():
-    a = ram[gameState]
-    if a == GS_CHECK_FARMER_MOVEMENT:
-        # Running game
-        check_for_gopher_digging_tunnel()
-        return
-
-    # Jump
-    done_vertical_blank()
-
-
-def check_for_gopher_digging_tunnel():
-    a = ram[currentPlayerScore]
-    if a != 0:  # score >= 10,000
-        a = ram[gopherVertMovementValues] & 0x7F
-
-        if a == 0:
-            a = a | 0x88
-            # Set to taunting gopher vertical value
-            ram[gopherVertMovementValues] = a
-
-    # Underground tunnel
-
-    a = ram[gopherVertPos]
-    if a == 0:
-        a = ram[gopherHorizPos]
-        x = ram[gopherReflectState]
-
-        if x == 0:
-            # Facing left
-            determine_garden_dirt_index(a)
-            return
-
-        # Facing right, seems to add width value to dig to right
-        a = adc(a, 8)
-
-        # unconditional branch
-        determine_garden_dirt_index(a)
-        return
-
-    # Upward tunnel
-    if a == VERT_POS_GOPHER_ABOVE_GROUND:
-        check_for_player_moving_shovel()
-        return
-
-    a = ram[gopherHorizMovementValues] & GOPHER_TUNNEL_TARGET_MASK
-    x = a
-    a = HorizontalTargetValues[x]  # ROM
-
-    # Fall through
-    determine_garden_dirt_index(a)
-
-
-def determine_garden_dirt_index(a):
-    x, y = determine_dirt_floor_index(a)
-    a = x
-    x = ram[gopherVertPos]
-
-    # Digging underground
-    if x == 0:
-        # Dig 4th garden dirt values (lowest)
-        a = adc(a, _4thGardenDirtValues - gardenDirtValues)
-        gopher_digging(a, y)
-        return
-
-    # digging first garden row
-    if x >= VERT_POS_GOPHER_UNDERGROUND + 14:
-        # branch if gopher in first garden row (highest)
-        gopher_digging(a, y)
-        return
-
-    # add offset for 2nd row (one under highest)
-    a = adc(a, _2ndGardenDirtValues - gardenDirtValues)
-
-    if x >= VERT_POS_GOPHER_UNDERGROUND + 7:
-        # branch if Gopher in second garden row
-        gopher_digging(a, y)
-        return
-
-    # add offset for 3rd row (one over lowest)
-    a = adc(a, _3rdGardenDirtValues - _2ndGardenDirtValues)
-
-    # Fall through
-    gopher_digging(a, y)
-
-
-def gopher_digging(a, y):
-    # print("DIGGING", a + gardenDirtValues, "SPECIFIC", y, "mask", bin(DirtMaskingBits[y]))
-    # print("Current value", bin(ram[gardenDirtValues + a]))
-
-    x = a
-    a = DirtMaskingBits[y] & ram[gardenDirtValues + x]  # ROM
-
-    # a is either 0 = dirt is there, or 1 = dirt was dug AT the masked BIT
-    # Checking if bit is not zero, by checking if whole byte is not zero
-    if a != 0:
-        # print("check mask", bin(DirtMaskingBits[y]))
-        # print("my byte", x, "=", bin(ram[gardenDirtValues + x]))
-
-        # Dirt exists
-        check_for_player_moving_shovel()
-        return
-
-    a = ram[gardenDirtValues + x]
-    a = a | DirtMaskingBits[y]
-    ram[gardenDirtValues + x] = a
-
-    # Temp ram storage
-    ram[tmpGardenDirtIndex] = x
-
-    # x = <[DigTunnelAudioValues - AudioValues]
-    set_game_audio_values((__DigTunnelAudioValues - __AudioValues) & 0xFF)
-
-    x = ram[tmpGardenDirtIndex]
-    a = ram[gopherVertPos]
-
-    # Tunneling underground
-    if a == 0:
-        check_to_change_gopher_horizontal_direction()
-        return
-
-    y = byte_increment(y)
-    a = DirtMaskingBits[y]
-
-    if is_negative(a) or a == 1:
-        x = byte_increment(x)
-
-    a = a | ram[gardenDirtValues + x]
-    ram[gardenDirtValues + x] = a
-
-    # Fall through
     check_to_change_gopher_horizontal_direction()
 
 
 def check_to_change_gopher_horizontal_direction():
-    a = ram[gopherVertMovementValues]
-
-    if is_negative(a):
-        check_for_player_moving_shovel()
+    if (ram[gopherVertMovementValues] & GOPHER_VERT_LOCKED_BIT) != 0:
+        # Is locked
         return
 
-    dec_result = byte_decrement(ram[gopherChangeDirectionTimer])
-    ram[gopherChangeDirectionTimer] = dec_result
+    ram[gopherChangeDirectionTimer] -= 1
 
-    if dec_result == 0:
-        a = ram[gopherVertMovementValues] | 0x80
-        ram[gopherVertMovementValues] = a
-        a = ram[initGopherChangeDirectionTimer]
-        ram[gopherChangeDirectionTimer] = a
-
-        # Unconditional branch
-        check_for_player_moving_shovel()
-        return
-
-    a = ram[gopherVertPos]
-
-    # Crawling underground
-    if a != 0:
-        a = 0x80
-        ram[gopherVertMovementValues] = a
-
-        # Unconditional branch
-        check_for_player_moving_shovel()
-        return
-
-    # Flip direction
-    a = exclusive_or(ram[gopherHorizMovementValues], GOPHER_HORIZ_DIR_MASK)
-    ram[gopherHorizMovementValues] = a
-
-    # Fall through
-    check_for_player_moving_shovel()
+    if ram[gopherChangeDirectionTimer] == 0:
+        ram[gopherVertMovementValues] |= GOPHER_VERT_LOCKED_BIT
+        ram[gopherChangeDirectionTimer] = ram[initGopherChangeDirectionTimer]
+    elif ram[gopherVertPos] == VERT_POS_GOPHER_UNDERGROUND:
+        # Flip direction
+        ram[gopherHorizMovementValues] ^= GOPHER_HORIZ_DIR_MASK
+    else:
+        ram[gopherVertMovementValues] = GOPHER_VERT_LOCKED_BIT
 
 
-def done_check_for_player_moving_shovel():
-    # Jump
-    done_vertical_blank()
+def is_single_player_game():
+    return ram[gameSelection] & 1 == 0
 
 
-def check_for_player_moving_shovel():
-    a = ram[farmerAnimationIdx]
-    if a != 0:
+def is_second_player_active():
+    return is_msb_set(ram[gameSelection])
+
+
+def is_duck_enabled():
+    return ram[gameSelection] & GAME_SELECTION_MASK < 2
+
+
+def update_farmer():
+    if ram[farmerAnimationIdx] != 0:
+        # Currently in animation
         increment_farmer_animation_index()
         return
 
-    a = intpt4_value()
-    x = ram[gameSelection]
-    if not is_positive(x):
-        # Switch to second player
-        a = intpt5_value()
+    action_button_state = (intpt5_value() if is_second_player_active() else intpt4_value()) & ACTION_MASK
 
-    a = a & ACTION_MASK
-    if not is_positive(a):
+    if action_button_state == 0:
+        # Action button pressed
+        if ram[actionButtonDebounce] != 0:
+            # Action button held down, does not count
+            # There has to be at least one not pressed frame until action button can be pressed again
+            return
+
+        ram[actionButtonDebounce] = 0xFF
+        increment_farmer_animation_index()
+    else:
         # Action button was not pressed
-        a = 0
-        ram[actionButtonDebounce] = a
-
-        # Fall through
-        done_check_for_player_moving_shovel()
-        # Can return, because done_check_for_player_moving_shovel ALWAYS jumps
-        return
-
-    # Player action button pressed
-    a = ram[actionButtonDebounce]
-    if a != 0:
-        done_check_for_player_moving_shovel()
-        return
-
-    a = 0xFF
-    ram[actionButtonDebounce] = a
-
-    # Fall through
-    increment_farmer_animation_index()
+        ram[actionButtonDebounce] = 0
 
 
 def increment_farmer_animation_index():
-    ram[farmerAnimationIdx] = byte_increment(ram[farmerAnimationIdx])
-    a = ram[farmerAnimationIdx]
+    next_animation_index = ram[farmerAnimationIdx] + 1
+    ram[farmerAnimationIdx] = next_animation_index
 
-    if a == 2:
-        a = __FarmerSprite_01_LOW
-        ram[farmerGraphicPtrs] = a
+    if next_animation_index == 8:
+        ram[farmerAnimationIdx] = 0
+        render_state.farmer = FarmerRenderingState.SPRITE_00
 
-        # Unconditional branch
-        done_check_for_player_moving_shovel()
-        return
+        # Actual action
+        farmer_action()
+    else:
+        if next_animation_index == 2:
+            render_state.farmer = FarmerRenderingState.SPRITE_01
 
-    if a == 4:
-        a = __FarmerSprite_02_LOW
-        ram[farmerGraphicPtrs] = a
-
-        # Unconditional branch
-        done_check_for_player_moving_shovel()
-        return
-
-    if a != 8:
-        done_check_for_player_moving_shovel()
-        return
-
-    a = 0
-    ram[farmerAnimationIdx] = a
-    a = __FarmerSprite_00_LOW
-    ram[farmerGraphicPtrs] = a
-    a = ram[farmerHorizPos]
-    a = sbc(a, 4)
-    ram[tmpShovelHorizPos] = a
-    x = 10
-
-    # Get hole / carrot that farmer is closer than 6 pixels to
-    while True:
-        a = ram[tmpShovelHorizPos]
-
-        # Absolute difference between horizontal target values and tmpShovelHorizPos
-        a = sbc(a, HorizontalTargetValues[x])
-        if not is_positive(a):
-            a = flip_byte(a)
-            a = adc(a, 1)
-
-        if a >= 6:
-            x = byte_decrement(x)
-            if is_positive(x):
-                continue
-            else:
-                # Jump
-                done_vertical_blank()
-                return
-        else:
-            # Carrot planting or hole filling
-            check_to_plant_carrot(x)
-            return
-
-    # Never reached
+        if next_animation_index == 4:
+            render_state.farmer = FarmerRenderingState.SPRITE_02
 
 
 # Carrot plating or hole filling
-def check_to_plant_carrot(x):
-    if x < 8:
-        # Only index 8, 9 and 10 are carrots.
-        # The rest are tunnels/holes
-        determine_to_fill_tunnel(x)
+def farmer_action():
+    carrot_or_hole_x_position = -1
+
+    # Get hole / carrot that farmer is closer than 6 pixels to
+    # Checks from 10 (inclusive) to 0 (inclusive)
+    for x in reversed(range(10 + 1)):
+        if abs((ram[farmerHorizPos] - 4) - HorizontalTargetValues[x]) < 6:
+            carrot_or_hole_x_position = x
+            break
+
+    if carrot_or_hole_x_position == -1:
         return
 
-    a = ram[heldSeedDecayingTimer]
-    if a == 0:
+    if carrot_or_hole_x_position < 8:
+        # Only index 8, 9 and 10 are carrots.
+        # The rest are tunnels/holes
+        fill_tunnel(carrot_or_hole_x_position)
+        return
+
+    if ram[heldSeedDecayingTimer] == 0:
         # Farmer not holding seed
-        done_vertical_blank()
         return
 
     # Plant carrot
-    a = 1 << 2
-    if x != 10:
-        if x != 9:
-            a = a >> 1
-        a = a >> 1
-
-    a = a | ram[carrotPattern]
-    ram[carrotPattern] = a
-    a = DISABLE_SEED
-    ram[fallingSeedVertPos] = a
-    a = 0
-    ram[heldSeedDecayingTimer] = a
-
-    # unconditional branch
-    done_vertical_blank()
+    # If carrot already existed at that spot, you wasted your seed :c
+    ram[carrotPattern] = (1 << (carrot_or_hole_x_position - 8)) | ram[carrotPattern]
+    # Disable seed
+    ram[fallingSeedVertPos] = DISABLE_SEED
+    ram[heldSeedDecayingTimer] = 0
 
 
-def determine_to_fill_tunnel(x):
-    # Temporary RAM
-    ram[tmpShovelVertTunnelIndex] = x
+def fill_tunnel(hole_idx):
+    if ram[gopherVertPos] != VERT_POS_GOPHER_UNDERGROUND:
+        # Above ground or climbing up/down
+        # If targeting carrot (bit set), will be 8,9,10 - otherwise [0, 7]
+        gopher_target_idx = ram[gopherHorizMovementValues] & (GOPHER_CARROT_TARGET_BIT | GOPHER_TUNNEL_TARGET_MASK)
 
-    a = ram[gopherVertPos]
-
-    # Not crawling underground
-    if a != 0:
-        a = ram[gopherHorizMovementValues] & (GOPHER_CARROT_TARGET_MASK | GOPHER_TUNNEL_TARGET_MASK)
-        x = a
-        # If targeting carrot, will target hole 0, 4, 5; otherwise 0, 1, 2, 3
-        a = HorizontalTargetValues[x]
-        x = ram[tmpShovelVertTunnelIndex]
-
-        if a == HorizontalTargetValues[x]:
-            done_vertical_blank()
+        if HorizontalTargetValues[gopher_target_idx] == HorizontalTargetValues[hole_idx]:
+            # Can not fill hole that is currently used for climbing
             return
 
-    a = HorizontalTargetValues[x]  # get shovel hole position
-    x, y = determine_dirt_floor_index(a)
+    byte_offset, fill_mask_index = calculate_x_dirt_memory_offset(HorizontalTargetValues[hole_idx])
 
-    # Try to find y-coordinate position to fill.
-    # Increment by 6 until we find a tunnel
-    # If none is found, x will end with a value >= 24
-    while True:
-        a = ram[gardenDirtValues + x] & DirtMaskingBits[y]
-        if a == 0:
-            # If tunnel not present
+    # Try to find y-coordinate position to fill from top (0) to bottom (3) until we hit dirt
+    first_dirt_y_pos = 4
+    for y_pos in range(4):
+        # Check if dirt exists
+        dirt_bit = ram[gardenDirtValues + byte_offset + y_pos * 6] & DirtMaskingBits[fill_mask_index]
+        if dirt_bit == 0:
+            first_dirt_y_pos = y_pos
             break
 
-        a = x
-        a = adc(a, 6)
-        x = a
+    # Fill ground one above last found dirt
+    target_fill_y_pos = first_dirt_y_pos - 1
 
-        # Using memory pointers in RAM to calculate size of gardenDirtValues
-        # Is actually always 24
-        # TODO: Maybe replace this with constant?
-        if a >= duckGraphicPtrs - gardenDirtValues:
-            break
-
-    a = x
-    a = sbc(a, 6)
-
-    if is_negative(a):
-        done_vertical_blank()
+    if target_fill_y_pos < 0:
+        # Would be above ground
         return
 
-    x = a
-    fill_in_tunnel(x, y)
+    fill_byte_offset = byte_offset + target_fill_y_pos * 6
+    fill_in_tunnel(fill_byte_offset, fill_mask_index)
 
-    if x >= _4thGardenDirtValues - gardenDirtValues:
-        # Filling bottom dirt row?
-        y = byte_decrement(y)
-        fill_in_tunnel(x, y)
-        y = byte_increment(y)
+    if target_fill_y_pos == 3:
+        # Bottom row, fill one to the left
+        fill_in_tunnel(fill_byte_offset, fill_mask_index - 1)
 
-    a = DirtMaskingBits[y]
-    if is_negative(a) or a == 1:
-        x = byte_increment(x)
+    if is_msb_set(DirtMaskingBits[fill_mask_index]) or DirtMaskingBits[fill_mask_index] == 1:
+        # Check if leftmost or rightmost bit is set
+        # Which means that we are the edge of a mask
+        fill_byte_offset += 1
 
-    y = byte_increment(y)
-    fill_in_tunnel(x, y)
+    fill_mask_index += 1
+    fill_in_tunnel(fill_byte_offset, fill_mask_index)
 
-    if x >= _4thGardenDirtValues - gardenDirtValues:
-        # if filling bottom dirt row
-        y = byte_increment(y)
-        fill_in_tunnel(x, y)
+    if target_fill_y_pos == 3:
+        # Bottom row, fill one to the right
+        fill_in_tunnel(fill_byte_offset, fill_mask_index + 1)
 
     # Score increment for tunnel fill
-    # x = <[FillTunnelAudioValues - AudioValues]
-    set_game_audio_values((__FillTunnelAudioValues - __AudioValues) & 0xFF)
+    set_game_audio_values(__FillTunnelAudioValues - __AudioValues)
 
-    a = POINTS_FILL_TUNNEL
-    increment_score(a)
-
-    # Fall through
-    done_vertical_blank()
+    increment_score(POINTS_FILL_TUNNEL)
 
 
-def done_vertical_blank():
-    a = ram[gameState]
-
-    if a < GS_PAUSE_GAME_STATE:
-        check_for_reset_button_pressed()
-        return
-
-    if a == GS_WAIT_FOR_NEW_GAME:
-        # After game over
-        convert_bcd_to_digits()
-        return
-
-    if a >= GS_ALTERNATE_PLAYERS:
-        check_for_reset_button_pressed()
-        return
-
-    # Fall through
-    convert_bcd_to_digits()
+def fill_in_tunnel(byte_offset, mask_index):
+    ram[gardenDirtValues + byte_offset] = flip_byte(DirtMaskingBits[mask_index]) & ram[gardenDirtValues + byte_offset]
 
 
-def convert_bcd_to_digits():
-    x = 2
-    y = 8
-
-    while True:
-        a = ram[currentPlayerScore + x] & 0x0F  # lower nybbles
-        # Multiply by 10
-        a = a << 1
-        ram[tmpMulti2] = a
-        a = a << 1
-        a = a << 1
-        a = adc(a, ram[tmpMulti2])
-
-        ram[digitGraphicPtrs + 2 + y] = a
-        a = ram[currentPlayerScore + x] & 0xF0  # upper nybbles
-        # Multiply by 10
-        a = a >> 1
-        ram[tmpMulti8] = a
-        a = a >> 1
-        a = a >> 1
-        a = adc(a, ram[tmpMulti8])
-        ram[digitGraphicPtrs + y] = a
-
-        y = byte_decrement(y)
-        y = byte_decrement(y)
-        y = byte_decrement(y)
-        y = byte_decrement(y)
-        dec_result = byte_decrement(x)
-        x = dec_result
-
-        if is_positive(dec_result):
-            continue
-
-        a = __Blank_HIGH
-        x = 0
-        break
-
-    while True:
-        y = ram[digitGraphicPtrs + x]
-        if y != 0:
-            a = __NumberFonts_HIGH
-
-        ram[digitGraphicPtrs + 1 + x] = a
-        x = byte_increment(x)
-        x = byte_increment(x)
-
-        if x != 10:
-            continue
-
-        a = __NumberFonts_HIGH
-        ram[digitGraphicPtrs + 11] = a
-        break
-
-    # Fall through
-    check_for_reset_button_pressed()
-
-
-# When pressing reset => resets whole game (which you want at the very start?)
+# When pressing reset => resets whole game (which you want at the very start)
 def check_for_reset_button_pressed():
-    a = swchb_value() & RESET_MASK
-
-    if a != 0:
-        # Reset not pressed
-        display_kernel()
-        return
-
-    # Skip directly to GS_RESET_PLAYER_VARIABLES
-    a = ram[gameSelection] & GAME_SELECTION_MASK
-    ram[gameSelection] = a
-    a = GS_RESET_PLAYER_VARIABLES
-    ram[gameState] = a
-
-    # Fall through?
-    display_kernel()
+    if swchb_value() & RESET_MASK == 0:
+        # Reset button pressed
+        # Reset currently active player
+        ram[gameSelection] = ram[gameSelection] & GAME_SELECTION_MASK
+        # Reset player variables as next game state
+        ram[gameState] = GS_RESET_PLAYER_VARIABLES
 
 
-def display_kernel():
-    # No rendering for now!
+def update_game_state():
+    gs = ram[gameState]
 
-    # Fall through
-    overscan()
+    _, carry = shift_left_with_carry(gs)
+    assert carry == 0
 
-
-# == RENDERING OMITTED ==
-
-
-def overscan():
-    # Assembly sets up overscan timer, not needed for python
-
-    # a = OVERSCAN_TIME
-    # sta TIM64T
-
-    """
-    GameStateRoutineTable
-   .word DisplayCopyrightInformation - 1
-   .word AdvanceGameStateAfterFrameCountExpire - 1
-   .word DisplayCompanyInformation - 1
-   .word AdvanceGameStateAfterFrameCountExpire - 1
-   .word ResetPlayerVariables - 1
-   .word DisplayGameSelection - 1
-   .word AdvanceGameStateAfterFrameCountExpire - 1
-   .word CheckToMoveFarmerHorizontally - 1
-   .word CarrotStolenByGopher - 1
-   .word WaitForDuckToAdvanceGameState - 1
-   .word InitGameRoundData - 1
-   .word CheckToAlternatePlayers - 1
-   .word InitGameRoundData - 1
-   .word DisplayPlayerNumberInformation - 1
-   .word WaitForActionButtonToStartRound - 1
-   .word WaitToStartNewGame - 1
-    """
-
-    # Using actual function with switch, instead of raw pointer table!
-
-    #    lda gameState                    ; get current game state
-    #    asl                              ; multiply by 2
-    #    tay
-    #    lda GameStateRoutineTable + 1,y
-    #    pha                              ; push game state routine LSB to stack
-    #    lda GameStateRoutineTable,y
-    #    pha                              ; push game state routine MSB to stack
-    #    rts                              ; jump to game state routine
-
-    a = ram[gameState]
-
-    # Calculate carry for random
-    _, carry = shift_left_with_carry(a)
-
-    if a == GS_DISPLAY_COPYRIGHT:  # 0
+    if gs == GS_DISPLAY_COPYRIGHT:  # 0
         display_copyright_information()
-    elif a == GS_DISPLAY_COPYRIGHT_WAIT or a == GS_DISPLAY_COMPANY_WAIT or a == GS_PAUSE_GAME_STATE:  # 1, 3, 6
+    elif gs == GS_DISPLAY_COPYRIGHT_WAIT or gs == GS_DISPLAY_COMPANY_WAIT or gs == GS_PAUSE_GAME_STATE:  # 1, 3, 6
         advance_game_state_after_frame_count_expire()
-    elif a == GS_DISPLAY_COMPANY:  # 2
+    elif gs == GS_DISPLAY_COMPANY:  # 2
         # Gets skipped usually
         display_company_information()
-    elif a == GS_RESET_PLAYER_VARIABLES:  # 4
-        reset_player_variables(carry)
-    elif a == GS_DISPLAY_GAME_SELECTION:  # 5
+    elif gs == GS_RESET_PLAYER_VARIABLES:  # 4
+        reset_player_variables(carry=0)
+    elif gs == GS_DISPLAY_GAME_SELECTION:  # 5
         display_game_selection()
-    elif a == GS_CHECK_FARMER_MOVEMENT:  # 7
-        check_to_move_farmer_horizontally()
-    elif a == GS_GOPHER_STOLE_CARROT:  # 8
-        carrot_stolen_by_gopher(carry)
-    elif a == GS_DUCK_WAIT:  # 9
-        wait_for_duck_to_advance_game_state(carry)
-    elif a == GS_INIT_GAME_FOR_ALTERNATE_PLAYER or a == GS_INIT_GAME_FOR_GAME_OVER:  # 10, 12
-        init_game_round_data(carry)
-    elif a == GS_ALTERNATE_PLAYERS:  # 11
-        check_to_alternate_players(carry)
-    elif a == GS_DISPLAY_PLAYER_NUMBER:  # 13
-        display_player_number_information(carry)
-    elif a == GS_PAUSE_FOR_ACTION_BUTTON:  # 14
-        wait_for_action_button_to_start_round(carry)
-    elif a == GS_WAIT_FOR_NEW_GAME:  # 15
+    elif gs == GS_MAIN_GAME_LOOP:  # 7
+        update_main_game_loop()
+    elif gs == GS_GOPHER_STOLE_CARROT:  # 8
+        carrot_stolen_by_gopher()
+    elif gs == GS_DUCK_WAIT:  # 9
+        wait_for_duck_to_advance_game_state()
+    elif gs == GS_INIT_GAME_FOR_ALTERNATE_PLAYER or gs == GS_INIT_GAME_FOR_GAME_OVER:  # 10, 12
+        init_game_round_data(carry=0)
+    elif gs == GS_ALTERNATE_PLAYERS:  # 11
+        check_to_alternate_players()
+    elif gs == GS_DISPLAY_PLAYER_NUMBER:  # 13
+        display_player_number_information()
+    elif gs == GS_PAUSE_FOR_ACTION_BUTTON:  # 14
+        wait_for_action_button_to_start_round()
+    elif gs == GS_WAIT_FOR_NEW_GAME:  # 15
         # After game over
-        wait_to_start_new_game(carry)
+        wait_to_start_new_game()
     else:
-        # Always JUMPS!
         assert False, "This should never be reached!"
 
 
 def display_copyright_information():
-    a = 12
-    ram[tmpEndGraphicPtrIdx] = a
-    a = __CopyrightLiteralSprites_HIGH
-    ram[tmpDigitPointerMSB] = a
-
-    y = __CopyrightLiteralSprites_LOW
-    _, carry = set_digit_graphic_pointers(y)
-    a = WAIT_TIME_DISPLAY_COPYRIGHT
-    ram[frameCount] = a
-
-    # Fall through
-    reset_player_variables(carry)
+    render_state.digit_graphic = DigitGraphic.COPYRIGHT
+    ram[frameCount] = WAIT_TIME_DISPLAY_COPYRIGHT
+    reset_player_variables(carry=1)
 
 
 def reset_player_variables(carry):
-    a = 0
-    x = 9
+    for offset in range(10):
+        ram[playerInformationValues + offset] = 0
 
-    while True:
-        ram[playerInformationValues + x] = a
-        x = byte_decrement(x)
-
-        if not is_positive(x):
-            break
-
-    a = 7
-    ram[carrotPattern] = a
-    ram[reservedPlayerCarrotPattern] = a
-    a = 15
-    ram[initGopherChangeDirectionTimer] = a
-    ram[reservedGopherChangeDirectionTimer] = a
+    ram[carrotPattern] = 7
+    ram[reservedPlayerCarrotPattern] = 7
+    ram[initGopherChangeDirectionTimer] = 15
+    ram[reservedGopherChangeDirectionTimer] = 15
 
     # Fall through
     init_game_round_data(carry)
 
 
 def init_game_round_data(carry):
-    a = __NullSprite_LOW
-    ram[duckLeftGraphicPtrs] = a
-    ram[duckRightGraphicPtrs] = a
-    a = __NullSprite_HIGH
-    ram[duckLeftGraphicPtrs + 1] = a
-    ram[duckRightGraphicPtrs + 1] = a
-    a = DISABLE_SEED
-    ram[fallingSeedVertPos] = a
-    a = __FarmerSprite_00_LOW
-    ram[farmerGraphicPtrs] = a
-    a = __FarmerSprite_00_HIGH
-    ram[farmerGraphicPtrs + 1] = a
-    a = __CarrotTopGraphics_LOW
-    ram[carrotTopGraphicPtrs] = a
-    a = __CarrotTopGraphics_HIGH
-    ram[carrotTopGraphicPtrs + 1] = a
-    a = __CarrotGraphics_LOW
-    ram[carrotGraphicsPtrs] = a
-    a = __CarrotGraphics_HIGH
-    ram[carrotGraphicsPtrs + 1] = a
-    a = __NullRunningGopher_LOW
-    ram[zone00_GopherGraphicsPtrs] = a
-    a = __NullRunningGopher_HIGH
-    ram[zone00_GopherGraphicsPtrs + 1] = a
-    a = __NullSprite_LOW
-    ram[zone01_GopherGraphicsPtrs] = a
-    a = __NullSprite_HIGH
-    ram[zone01_GopherGraphicsPtrs + 1] = a
-    a = __RunningGopher_00_LOW
-    ram[zone02_GopherGraphicsPtrs] = a
-    a = __RunningGopher_00_HIGH
-    ram[zone02_GopherGraphicsPtrs + 1] = a
-    a = MSBL_SIZE1 | DOUBLE_SIZE
-    ram[gopherNUSIZValue] = a
-    a = INIT_FARMER_HORIZ_POS
-    ram[farmerHorizPos] = a
-    a = COLOR_GARDEN_DIRT
-    ram[COLUPF] = a
-    a = INIT_GOPHER_HORIZ_POS
-    # Note: Strangely no -4 adjustment to INIT_GOPHER_HORIZ_POS
-    ram[gopherHorizPos] = a
-    ram[duckHorizPos] = a
-    a = ram[initGopherChangeDirectionTimer]
-    ram[gopherChangeDirectionTimer] = a
-    a = 0
-    ram[gopherVertPos] = a
-    ram[gopherReflectState] = a
-    ram[heldSeedDecayingTimer] = a
-    ram[duckAnimationRate] = a
+    render_state.duck_wings = DuckWingRenderingState.DISABLED
+    render_state.duck_face = DuckFaceRenderingState.DISABLED
+    ram[fallingSeedVertPos] = DISABLE_SEED
+    render_state.farmer = FarmerRenderingState.SPRITE_00
+    render_state.gopher_00 = GopherRenderingStateZone00.NULL_RUNNING
+    render_state.gopher_01 = GopherRenderingStateZone01.NULL_SPRITE
+    render_state.gopher_02 = GopherRenderingStateZone02.RUNNING_00
 
-    # Fall through
+    ram[farmerHorizPos] = INIT_FARMER_HORIZ_POS
+    # Note: Strangely no -4 adjustment to INIT_GOPHER_HORIZ_POS
+    ram[gopherHorizPos] = INIT_GOPHER_HORIZ_POS
+    ram[duckHorizPos] = INIT_GOPHER_HORIZ_POS
+    ram[gopherChangeDirectionTimer] = ram[initGopherChangeDirectionTimer]
+    ram[gopherVertPos] = 0
+    ram[gopherReflectState] = 0
+    ram[heldSeedDecayingTimer] = 0
+    ram[duckAnimationTimer] = 0
+
     init_garden_dirt_values(carry)
 
 
 def init_garden_dirt_values(carry):
-    # register values set from init_game_round_data
-    a = 0
-    x = 23
+    for offset in range(24):
+        ram[gardenDirtValues + offset] = 0
 
-    while True:
-        ram[gardenDirtValues + x] = a
-        x = byte_decrement(x)
+    ram[gopherTauntTimer] = 0
 
-        if not is_positive(x):
-            break
-
-    ram[gopherTauntTimer] = a
-
-    # Most likely making space for gopher init position
-    a = 0xF0
-    ram[_4thGardenDirtRightPF2] = a
-    ram[_4thGardenDirtLeftPF0] = a
+    # Making space for gopher init position
+    ram[_4thGardenDirtRightPF2] = 0xF0
+    ram[_4thGardenDirtLeftPF0] = 0xF0
 
     # Set gopher initial random state
-    a = ram[random] & 0x7F
-    ram[gopherVertMovementValues] = a
-    a = ram[random + 1] & (GOPHER_HORIZ_DIR_MASK | GOPHER_TUNNEL_TARGET_MASK)
-    ram[gopherHorizMovementValues] = a
+    ram[gopherVertMovementValues] = ram[random] & (~GOPHER_VERT_LOCKED_BIT & 0xFF)
+    # Set random horizontal direction and target random tunnel (not carrot)
+    ram[gopherHorizMovementValues] = ram[random + 1] & (GOPHER_HORIZ_DIR_MASK | GOPHER_TUNNEL_TARGET_MASK)
 
-    # Jump
     advance_current_game_state(carry)
 
 
 def display_company_information():
-    # Gets skipped usually
-    a = 12
-    ram[tmpEndGraphicPtrIdx] = a
-    a = __USGamesLiteral_HIGH
-    ram[tmpDigitPointerMSB] = a
-    y = __USGamesLiteral_LOW
-    _, carry = set_digit_graphic_pointers(y)
-
-    # Jump
-    reset_player_variables(carry)
+    render_state.digit_graphic = DigitGraphic.COMPANY
+    reset_player_variables(carry=1)
 
 
-def wait_for_duck_to_advance_game_state(carry):
-    a = ram[duckAnimationRate]
+def wait_for_duck_to_advance_game_state():
+    a = ram[duckAnimationTimer]
 
     if a != 0:
-        done_advance_game_state_after_frame_count_expire(carry)
+        end_of_frame(carry=0)
         return
 
-    # Fall through
     advance_game_state_after_frame_count_expire()
 
 
 def advance_game_state_after_frame_count_expire():
-    a = ram[frameCount]
-
-    carry = 1 if a >= 255 else 0
-    if a != 255:
-        done_advance_game_state_after_frame_count_expire(carry)
+    if ram[frameCount] != 255:
+        end_of_frame(carry=0)
         return
 
-    # Jump
-    advance_current_game_state(carry)
-
-
-def done_advance_game_state_after_frame_count_expire(carry):
-    # Jump
-    new_frame(carry)
+    advance_current_game_state(carry=1)
 
 
 def display_game_selection():
-    a = 8
-    ram[tmpEndGraphicPtrIdx] = a
-    a = __GameSelectionLiteralSprites_HIGH
-    ram[tmpDigitPointerMSB] = a
-    y = __GameSelectionLiteralSprites_LOW
-    x, _ = set_digit_graphic_pointers(y)
+    render_state.digit_graphic = DigitGraphic.GAME_SELECTION
 
-    a = __Blank_LOW
-    ram[digitGraphicPtrs + x] = a
-    a = __Blank_HIGH
-    ram[digitGraphicPtrs + 1 + x] = a
-
-    a = ram[gameSelection] & GAME_SELECTION_MASK
-    a = a << 1
-    ram[tmpMulti2] = a
-    a = a << 1
-    a = a << 1
-    a = adc(a, ram[tmpMulti2])
-    a, carry = adc_with_carry(a, 10)
-    ram[digitGraphicPtrs + 10] = a
-    a = __NumberFonts_HIGH
-    ram[digitGraphicPtrs + 11] = a
-    a = swchb_value() & SELECT_MASK
-
-    if a != 0:
-        select_button_not_pressed(carry)
+    if swchb_value() & SELECT_MASK != 0:
+        select_button_not_pressed()
         return
 
-    # Only done when game mode is changed
-    a = ram[selectDebounce]
-    if a != 0:
-        done_display_game_selection(carry)
+    if ram[selectDebounce] != 0:
+        # Already pressed select last frame
+        end_of_frame(carry=0)
         return
 
-    ram[gameSelection] = byte_increment(ram[gameSelection])
-    a = ram[gameSelection] & GAME_SELECTION_MASK
+    carry = 1 if ram[gameSelection] == MAX_GAME_SELECTION else 0
+    # Only allow game modes 0, 1, 2 or 3
+    ram[gameSelection] = (ram[gameSelection] + 1) % (MAX_GAME_SELECTION + 1)
+    ram[selectDebounce] = 0xFF
 
-    carry = 1 if a >= MAX_GAME_SELECTION + 1 else 0
-    if a >= MAX_GAME_SELECTION + 1:
-        a = 0
-        ram[gameSelection] = a
-
-    a = 0xFF
-    ram[selectDebounce] = a
-
-    # Fall through
-    done_display_game_selection(carry)
+    end_of_frame(carry)
 
 
-def done_display_game_selection(carry):
-    # Jump
-    new_frame(carry)
+def select_button_not_pressed():
+    ram[selectDebounce] = 0
 
-
-def select_button_not_pressed(carry):
-    a = 0
-    ram[selectDebounce] = a
-    a = intpt4_value()
-
-    if is_negative(a):
+    if is_negative(intpt4_value()):
         # action button not pressed
-        done_display_game_selection(carry)
+        end_of_frame(carry=0)
         return
 
-    # x = <[StartingThemeAudioValues_00 - AudioValues]
-    set_game_audio_values((__StartingThemeAudioValues_00 - __AudioValues) & 0xFF)
-    # x = <[StartingThemeAudioValues_01 - AudioValues]
-    set_game_audio_values((__StartingThemeAudioValues_01 - __AudioValues) & 0xFF)
+    # Start game
+    set_game_audio_values(__StartingThemeAudioValues_00 - __AudioValues)
+    set_game_audio_values(__StartingThemeAudioValues_01 - __AudioValues)
 
-    a = WAIT_TIME_GAME_START
-    ram[frameCount] = a
+    ram[frameCount] = WAIT_TIME_GAME_START
 
-    # Jump
-    advance_current_game_state(carry)
+    advance_current_game_state(carry=0)
 
 
-def display_player_number_information(carry):
-    a = ram[gameSelection] & 1
-
-    if a == 0:
-        # one player game
-        done_display_player_number_information(carry)
+def display_player_number_information():
+    if is_single_player_game():
+        advance_current_game_state(carry=0)
         return
 
-    # Two player game
-    a = 10
-    ram[tmpEndGraphicPtrIdx] = a
-    a = __PlayerNumberLiteralSprites_HIGH
-    ram[tmpDigitPointerMSB] = a
-    y = __PlayerNumberLiteralSprites_LOW
-    set_digit_graphic_pointers(y)
-    a = ram[gameSelection] & ACTIVE_PLAYER_MASK
-    x = a
-    a = (__one - __NumberFonts) & 0xFF  # <[one - NumberFonts]
-
-    carry = 1 if x >= PLAYER_TWO_ACTIVE else 0
-    if x == PLAYER_TWO_ACTIVE:
-        a, carry = adc_with_carry(a, H_FONT)
-
-    ram[digitGraphicPtrs + 10] = a
-    a = __NumberFonts_HIGH
-    ram[digitGraphicPtrs + 11] = a
-
-    # Fall through
-    done_display_player_number_information(carry)
+    render_state.digit_graphic = DigitGraphic.PLAYER_NUMBER
+    advance_current_game_state(1 if is_second_player_active() else 0)
 
 
-def done_display_player_number_information(carry):
-    # Jump
-    advance_current_game_state(carry)
+def update_main_game_loop():
+    update_farmer_movement()
+    can_be_bonked = update_gopher_movement()
+
+    if can_be_bonked:
+        check_for_farmer_bonking_gopher()
+        update_gopher_taunt_logic()
+        update_gopher_animation()
 
 
-def check_to_move_farmer_horizontally():
-    a = swcha_value()
-    x = ram[gameSelection]
+def update_farmer_movement():
+    joystick_values = swcha_value()
 
-    if not is_positive(x):
+    if is_second_player_active():
         # Shift player 2 joystick values
-        a = (a << 4) & 0xFF
+        joystick_values = (joystick_values << 4) & 0xFF
 
-    x = a
-
-    # a & b00110000 -> 1 where left and right are
-    a = a & flip_byte(MOVE_RIGHT & MOVE_LEFT)
-    # => b00LR0000, where R or L is 0 if pressed
-
-    if a == flip_byte(MOVE_RIGHT & MOVE_LEFT):  # b00110000
-        # both left or right not pressed
-        check_to_move_gopher()
-        return
-
-    a = x
-    # a & b00010000
-    a = a & flip_byte(MOVE_RIGHT)
-    # => b000R000 where R is 0 if pressed
-
-    if a != 0:
+    if (joystick_values & flip_byte(MOVE_RIGHT & MOVE_LEFT)) == flip_byte(MOVE_RIGHT & MOVE_LEFT):
+        # both left and right not pressed
+        pass
+    elif (joystick_values & flip_byte(MOVE_RIGHT)) != 0:
         # Move farmer right
-        a = ram[farmerHorizPos]
-        if a >= XMAX_FARMER:
-            check_to_move_gopher()
-            return
-
-        ram[farmerHorizPos] = byte_increment(ram[farmerHorizPos])
+        if ram[farmerHorizPos] < XMAX_FARMER:
+            ram[farmerHorizPos] += 1
     else:
         # Move farmer left
-        a = ram[farmerHorizPos]
-
-        if a < XMIN_FARMER:
-            check_to_move_gopher()
-            return
-        else:
-            ram[farmerHorizPos] = byte_decrement(ram[farmerHorizPos])
-
-    # unconditional branch
-    check_to_move_gopher()
-
-    # Never reached
+        if ram[farmerHorizPos] >= XMIN_FARMER:
+            ram[farmerHorizPos] -= 1
 
 
-def check_to_move_gopher():
-    a = ram[gopherTauntTimer]
-
-    if a != 0:
+def update_gopher_movement() -> bool:
+    if ram[gopherTauntTimer] != 0:
         # Currently taunting
-        done_check_to_move_gopher()
-        return
-
-    a = ram[gopherHorizMovementValues] & (GOPHER_CARROT_TARGET_MASK | GOPHER_TUNNEL_TARGET_MASK)
-    x = a
+        return True
 
     # Either carrot or tunnel target
-    a = HorizontalTargetValues[x]
-    # Get absolute distance
-    a = sbc(a, ram[gopherHorizPos])
-    if not is_positive(a):
-        a = flip_byte(a)
-        a = adc(a, 1)
+    x_target_idx = ram[gopherHorizMovementValues] & (GOPHER_CARROT_TARGET_BIT | GOPHER_TUNNEL_TARGET_MASK)
+    x_target = HorizontalTargetValues[x_target_idx]
 
-    if a < 3:
-        # Close enough to target
-        determine_to_remove_carrot(x)
-        return
+    if abs(ram[gopherHorizPos] - x_target) < 3:
+        # Close to target (moving up/down, steal carrot)
+        return gopher_steal_carrot_or_move_vertically(x_target_idx)
 
-    a = ram[gopherHorizMovementValues]
-    if is_negative(a):
-        # gopher travels to left
-        move_gopher_left()
-        return
+    # Otherwise move left or right
+    if (ram[gopherHorizMovementValues] & GOPHER_HORIZ_DIR_MASK) != 0:
+        # Move left
+        ram[gopherHorizPos] -= 2
+        ram[gopherReflectState] = NO_REFLECT
 
-    ram[gopherHorizPos] = byte_increment(ram[gopherHorizPos])
-    ram[gopherHorizPos] = byte_increment(ram[gopherHorizPos])
-    a = REFLECT
-    ram[gopherReflectState] = a
-    a = ram[gopherHorizPos]
+        if ram[gopherHorizPos] < XMIN_GOPHER:
+            ram[gopherHorizPos] = XMAX_GOPHER
 
-    if a >= XMAX_GOPHER:
-        wrap_gopher_to_left_side()
-        return
+    else:
+        # Move right
+        ram[gopherHorizPos] += 2
+        ram[gopherReflectState] = REFLECT
 
-    # Fall through
-    done_check_to_move_gopher()
+        if ram[gopherHorizPos] >= XMAX_GOPHER:
+            ram[gopherHorizPos] = XMIN_GOPHER
+
+    return True
 
 
-def done_check_to_move_gopher():
-    # Jump
-    check_for_farmer_bonking_gopher()
-
-
-def wrap_gopher_to_left_side():
-    a = XMIN_GOPHER
-    ram[gopherHorizPos] = a
-    # Jump
-    check_for_farmer_bonking_gopher()
-
-
-def move_gopher_left():
-    ram[gopherHorizPos] = byte_decrement(ram[gopherHorizPos])
-    ram[gopherHorizPos] = byte_decrement(ram[gopherHorizPos])
-    a = NO_REFLECT
-    ram[gopherReflectState] = a
-    a = ram[gopherHorizPos]
-
-    if a < XMIN_GOPHER:
-        wrap_gopher_to_right_side()
-        return
-
-    # Jump
-    check_for_farmer_bonking_gopher()
-
-
-def wrap_gopher_to_right_side():
-    a = XMAX_GOPHER
-    ram[gopherHorizPos] = a
-
-    # Jump
-    check_for_farmer_bonking_gopher()
-
-
-def determine_to_remove_carrot(x):
-    a = ram[gopherVertPos]
-
-    if a != VERT_POS_GOPHER_ABOVE_GROUND:
+def gopher_steal_carrot_or_move_vertically(x) -> bool:
+    if ram[gopherVertPos] != VERT_POS_GOPHER_ABOVE_GROUND:
+        # Move up/down
         move_gopher_vertically(x)
-        return
+        return True
 
-    a = ram[gopherHorizMovementValues] & 3
-    x = a
-    a = 0
-    carry = 1
-
-    while True:
-        a, carry = roll_left_with_carry(a, carry)
-        x = byte_decrement(x)
-
-        if not is_positive(x):
-            break
+    target_carrot = ram[gopherHorizMovementValues] & GOPHER_CARROT_STEAL_MASK
+    assert target_carrot <= 2
+    target_carrot_mask = 1 << target_carrot
 
     # Remove carrot
-    a = flip_byte(a) & ram[carrotPattern]
-    ram[carrotPattern] = a
+    ram[carrotPattern] = ~target_carrot_mask & ram[carrotPattern]
 
-    # Jump
-    advance_current_game_state(carry)
+    advance_current_game_state(carry=0)
+    return False  # The ONLY time bonking is not allowed/checked for
 
 
 def move_gopher_vertically(x):
-    y = HorizontalTargetValues[x]
-    a = ram[gopherReflectState]
-    if a != 0:
+    target_x = HorizontalTargetValues[x]
+    if ram[gopherReflectState] == REFLECT:
         # If gopher is facing right
-        y = byte_increment(y)
+        target_x += 1
 
-    ram[gopherHorizPos] = y
-    a = ram[gopherVertMovementValues] & GOPHER_TARGET_MASK
+    # "Stick" gopher to target position
+    ram[gopherHorizPos] = target_x
 
-    x = a
-    a = ram[gopherVertPos]
-    if a == GopherTargetVertPositions[x]:
-        # Carry used by random
-        carry = 1 if a >= GopherTargetVertPositions[x] else 0
-        gopher_reached_vertical_target(carry)
+    # Check if reached vertical target
+    y_target = GopherTargetVertPositions[ram[gopherVertMovementValues] & GOPHER_VERT_TARGET_MASK]
+    if ram[gopherVertPos] == y_target:
+        gopher_reached_vertical_target()
         return
 
-    if a < GopherTargetVertPositions[x]:
-        move_gopher_up()
-        return
+    if ram[gopherVertPos] < y_target:
+        ram[gopherVertPos] += 1
 
-    # Move down
-    ram[gopherVertPos] = byte_decrement(ram[gopherVertPos])
-
-    # Fall through
-    done_move_gopher_vertically()
-
-
-def done_move_gopher_vertically():
-    # Jump
-    check_for_farmer_bonking_gopher()
+        if ram[gopherVertPos] == VERT_POS_GOPHER_ABOVE_GROUND:
+            # Moved above ground, target carrot!
+            set_gopher_carrot_target()
+    else:
+        # Move down
+        ram[gopherVertPos] -= 1
 
 
-def move_gopher_up():
-    ram[gopherVertPos] = byte_increment(ram[gopherVertPos])
-    a = ram[gopherVertPos]
-
-    if a != VERT_POS_GOPHER_ABOVE_GROUND:
-        done_move_gopher_vertically()
-        return
-
-    a = ram[gopherHorizPos]
-    a = sbc(a, XMAX // 2)
-
-    if is_negative(a):
+def set_gopher_carrot_target():
+    if ram[gopherHorizPos] <= XMAX // 2:
         # On left half of screen
-        determine_left_targeted_carrot()
+
+        # Moving right, and activate carrot targeting
+        ram[gopherHorizMovementValues] = GOPHER_CARROT_TARGET_BIT
+
+        # Select leftmost carrot
+        if ram[carrotPattern] & (1 << 2) != 0:
+            ram[gopherHorizMovementValues] += 2
+        elif ram[carrotPattern] & (1 << 1) != 0:
+            ram[gopherHorizMovementValues] += 1
+        else:
+            ram[gopherHorizMovementValues] += 0
+    else:
+        # Moving left, and activating carrot targeting
+        ram[gopherHorizMovementValues] = GOPHER_HORIZ_DIR_MASK | GOPHER_CARROT_TARGET_BIT
+
+        # Select rightmost carrot
+        if ram[carrotPattern] & (1 << 0) != 0:
+            ram[gopherHorizMovementValues] += 0
+        elif ram[carrotPattern] & (1 << 1) != 0:
+            ram[gopherHorizMovementValues] += 1
+        else:
+            ram[gopherHorizMovementValues] += 2
+
+
+def gopher_reached_vertical_target():
+    if ram[gopherVertMovementValues] & GOPHER_VERT_TARGET_MASK == VERT_POS_GOPHER_UNDERGROUND:
+        # Reached bottom again, now deciding new target
+        set_gopher_new_target_values()
         return
 
-    a = (GOPHER_TRAVEL_LEFT | GOPHER_CARROT_TARGET)
-    ram[gopherHorizMovementValues] = a
-    a = ram[carrotPattern]
+    ram[gopherVertMovementValues] = GOPHER_VERT_LOCKED_BIT
 
-    a, carry = shift_right_with_carry(a)
-    if carry:
-        # right carrot present
-        done_determine_targeted_carrot()
-        return
-
-    ram[gopherHorizMovementValues] = byte_increment(ram[gopherHorizMovementValues])
-
-    a, carry = shift_right_with_carry(a)
-    if carry:
-        # center carrot present
-        done_determine_targeted_carrot()
-        return
-
-    ram[gopherHorizMovementValues] = byte_increment(ram[gopherHorizMovementValues])
-
-    # unconditional branch
-    done_determine_targeted_carrot()
+    if ram[gopherVertPos] == VERT_POS_GOPHER_TAUNTING:
+        ram[gopherVertPos] -= 1
 
 
-def determine_left_targeted_carrot():
-    a = 10
-    ram[gopherHorizMovementValues] = a
-    a = ram[carrotPattern] & (1 << 2)  # left carrot value
-    if a != 0:
-        # left carrot
-        done_determine_targeted_carrot()
-        return
+def set_gopher_new_target_values():
+    next_random(carry=1)
+    ram[gopherVertMovementValues] = ram[random]
+    # Randomly choose facing direction and tunnel to target
+    ram[gopherHorizMovementValues] = ram[random + 1] & (GOPHER_HORIZ_DIR_MASK | GOPHER_TUNNEL_TARGET_MASK)
+    # gopherHorizMovementValues after this => 0bR000 0RRR
 
-    ram[gopherHorizMovementValues] = byte_decrement(ram[gopherHorizMovementValues])
+    # score >= 10,000
+    # or difficulty switch set
+    if ram[currentPlayerScore] != 0 or \
+            is_msb_set(swchb_value() if is_second_player_active() else (swchb_value() << 1)):
+        smart_gopher_tunnel_targeting()
+        # gopherHorizMovementValues after this => Either 0bR000 01RR or 0bX000 00XX (where at least one X = 1)
 
-    a = ram[carrotPattern] & (1 << 1)  # center carrot value
-    if a != 0:
-        # left carrot
-        done_determine_targeted_carrot()
-        return
-
-    ram[gopherHorizMovementValues] = byte_decrement(ram[gopherHorizMovementValues])
-
-    # Fall through
-    done_determine_targeted_carrot()
+    normal_gopher_logic()
 
 
-def done_determine_targeted_carrot():
-    # Jump
-    check_for_farmer_bonking_gopher()
+def smart_gopher_tunnel_targeting():
+    if ram[farmerHorizPos] >= 80:
+        ram[gopherHorizMovementValues] = ram[gopherHorizMovementValues] & flip_byte(GOPHER_TARGET_RIGHT_TUNNELS_BIT)
+
+    # Does not allow 0 target value, not sure why (would be tunnel 0) - maybe balancing?
+    if ram[farmerHorizPos] < 80 or ram[gopherHorizMovementValues] == 0:
+        ram[gopherHorizMovementValues] = ram[gopherHorizMovementValues] | GOPHER_TARGET_RIGHT_TUNNELS_BIT
 
 
-def gopher_reached_vertical_target(carry):
-    a = ram[gopherVertMovementValues] & GOPHER_TARGET_MASK
+def normal_gopher_logic():
+    if ram[gopherChangeDirectionTimer] != 0:
+        ram[gopherChangeDirectionTimer] -= 1
+        ram[gopherVertMovementValues] = ram[gopherVertMovementValues] & 0x7F
 
-    # Targeting underground
-    if a == 0:
-        set_gopher_new_target_values(carry)
-        return
-
-    a = 0x80
-    ram[gopherVertMovementValues] = a
-    a = ram[gopherVertPos]
-
-    if a != VERT_POS_GOPHER_ABOVE_GROUND - 1:
-        check_for_farmer_bonking_gopher()
-        return
-
-    ram[gopherVertPos] = byte_decrement(ram[gopherVertPos])
-
-    # Jump
-    check_for_farmer_bonking_gopher()
-
-
-def set_gopher_new_target_values(carry):
-    next_random(carry)
-    a = ram[random]
-    ram[gopherVertMovementValues] = a
-    a = ram[random + 1] & (GOPHER_HORIZ_DIR_MASK | GOPHER_TUNNEL_TARGET_MASK)
-    ram[gopherHorizMovementValues] = a
-    a = ram[currentPlayerScore]
-
-    if a != 0:  # score >= 10,000
-        very_smart_gopher()
-        return
-
-    a = swchb_value()
-    x = ram[gameSelection]
-
-    if not is_negative(x):  # negative = player 2 active
-        # player one active
-        # move bit 6 to bit 7 - NORMALLY shifts player 2 difficulty to player 1 difficulty, however:
-        # TODO: Difficulty settings somehow got mixed up in Gopher!
-        a = a << 1
-
-    a = a & 0x80  # & 0b10000000
-    # => 0bP0000000, P = 1 if pro/A mode is activated.
-
-    if is_positive(a):
-        # P = 0, meaning amateur/B mode
-        smart_gopher_setting()
-        return
-
-    # Fall through
-    very_smart_gopher()
-
-
-def very_smart_gopher():
-    a = ram[farmerHorizPos]
-    if a >= 80:
-        a = ram[gopherHorizMovementValues] & flip_byte(GOPHER_TARGET_RIGHT_TUNNELS)
-        ram[gopherHorizMovementValues] = a
-
-        # Not unconditional branch. Line 1648
-        # Is weird, since this means both left and right half of screen
-        # code is executed
-
-        if a != 0:
-            smart_gopher_setting()
-            return
-
-    # gopher targets right half of screen
-    a = ram[gopherHorizMovementValues] | GOPHER_TARGET_RIGHT_TUNNELS
-    ram[gopherHorizMovementValues] = a
-
-    # Fall through
-    smart_gopher_setting()
-
-
-def smart_gopher_setting():
-    a = ram[gopherChangeDirectionTimer]
-
-    if a != 0:
-        decrement_gopher_change_direction_timer()
-        return
-
-    # Fall through
-    reset_gopher_change_direction_timer()
-
-
-def reset_gopher_change_direction_timer():
-    a = ram[initGopherChangeDirectionTimer]
-    ram[gopherChangeDirectionTimer] = a
-
-    a = ram[gopherVertMovementValues] | 0x80
-    ram[gopherVertMovementValues] = a
-
-    # Unconditional branch
-    check_for_farmer_bonking_gopher()
-    return
-
-
-def decrement_gopher_change_direction_timer():
-    dec_result = byte_decrement(ram[gopherChangeDirectionTimer])
-    ram[gopherChangeDirectionTimer] = dec_result
-
-    if dec_result == 0:
-        reset_gopher_change_direction_timer()
-        # Can return, since reset gopher_change_direction_timer already jumps unconditionally!
-        return
-
-    a = ram[gopherVertMovementValues] & 0x7F
-    ram[gopherVertMovementValues] = a
-
-    # Fall through
-    check_for_farmer_bonking_gopher()
+    if ram[gopherChangeDirectionTimer] == 0:
+        ram[gopherChangeDirectionTimer] = ram[initGopherChangeDirectionTimer]
+        ram[gopherVertMovementValues] |= 0x80
 
 
 def check_for_farmer_bonking_gopher():
-    a = ram[farmerAnimationIdx]
-    if a < 4:
-        check_to_taunt_farmer()
+    # Farmer currently not in last half of animation (>= 4)
+    # or Gopher is lower than taunting position
+    # or Farmer is too far away
+    if ram[farmerAnimationIdx] < 4 or ram[gopherVertPos] < VERT_POS_GOPHER_TAUNTING \
+            or abs(ram[farmerHorizPos] - (ram[gopherHorizPos] + 3)) >= 6:
         return
 
-    a = ram[gopherVertPos]
-    if a < VERT_POS_GOPHER_ABOVE_GROUND - 1:
-        check_to_taunt_farmer()
-        return
-
-    # get absolute distance between farmerHorizPos and gopherHorizPos + 3
-    a = ram[farmerHorizPos]
-    a = sbc(a, ram[gopherHorizPos])
-    a = sbc(a, 3)
-    if not is_positive(a):
-        a = flip_byte(a)
-        a = adc(a, 1)
-
-    if a >= 6:
-        check_to_taunt_farmer()
-        return
-
-    # x = <[BonkGopherAudioValues - AudioValues]
-    set_game_audio_values((__BonkGopherAudioValues - __AudioValues) & 0xFF)
-    a = POINTS_BONK_GOPHER
-    increment_score(a)
+    # Bonked!
+    set_game_audio_values(__BonkGopherAudioValues - __AudioValues)
+    increment_score(POINTS_BONK_GOPHER)
 
     # Reset gopher
-    a = INIT_GOPHER_HORIZ_POS - 4
-    ram[gopherHorizPos] = a
-    a = ram[random] & (GOPHER_HORIZ_DIR_MASK | GOPHER_TUNNEL_TARGET_MASK)
-    ram[gopherHorizMovementValues] = a
-    a = 0
-    ram[gopherVertMovementValues] = a
-    ram[gopherVertPos] = a
-    ram[gopherTauntTimer] = a
-
-    # Fall through
-    check_to_taunt_farmer()
+    ram[gopherHorizPos] = INIT_GOPHER_HORIZ_POS - 4
+    # Set random new horizontal direction, and new tunnel (does not target carrot)
+    ram[gopherHorizMovementValues] = ram[random] & (GOPHER_HORIZ_DIR_MASK | GOPHER_TUNNEL_TARGET_MASK)
+    ram[gopherVertMovementValues] = 0
+    ram[gopherVertPos] = 0
+    ram[gopherTauntTimer] = 0
 
 
-def check_to_taunt_farmer():
-    a = ram[gopherVertPos]
-    carry = 1 if a >= VERT_POS_GOPHER_ABOVE_GROUND else 0
-    if a == VERT_POS_GOPHER_ABOVE_GROUND:
-        disable_zone01_gopher_sprite(carry)
+def update_gopher_taunt_logic():
+    if ram[gopherVertPos] == VERT_POS_GOPHER_TAUNTING:
+        if ram[gopherTauntTimer] != 0:
+            ram[gopherTauntTimer] -= 1
+        else:
+            # Taunt for 28 frames
+            set_game_audio_values(__GopherTauntAudioValues - __AudioValues)
+            ram[gopherTauntTimer] = 28
+
+    if ram[gopherTauntTimer] != 0:
+        set_taunting_gopher_facing_direction()
+
+
+def set_taunting_gopher_facing_direction():
+    if ram[farmerHorizPos] <= ram[gopherHorizPos]:
+        # If not already looking left
+        if (ram[gopherHorizMovementValues] & GOPHER_HORIZ_DIR_MASK) == 0:
+            ram[gopherHorizMovementValues] |= GOPHER_HORIZ_DIR_MASK
+            ram[gopherReflectState] = NO_REFLECT
+            ram[gopherHorizPos] -= 1
+    else:
+        # If not already looking right
+        if (ram[gopherHorizMovementValues] & GOPHER_HORIZ_DIR_MASK) != 0:
+            ram[gopherHorizMovementValues] &= flip_byte(GOPHER_HORIZ_DIR_MASK)
+            ram[gopherHorizPos] += 1
+            ram[gopherReflectState] = REFLECT
+
+
+def update_gopher_animation():
+    update_gopher_01_sprite()
+    update_gopher_00_sprite()
+    update_gopher_02_sprite()
+
+    if ram[gopherTauntTimer] != 0:
+        animate_taunting_gopher()
+
+    carry = animate_crawling_gopher()
+    end_of_frame(carry)
+
+
+def update_gopher_01_sprite():
+    y_pos = ram[gopherVertPos]
+
+    if y_pos == VERT_POS_GOPHER_ABOVE_GROUND:
+        render_state.gopher_01 = GopherRenderingStateZone01.NULL_SPRITE
+    elif y_pos < VERT_POS_GOPHER_UNDERGROUND + 7:
+        render_state.gopher_01 = GopherRenderingStateZone01.NULL_SPRITE
+    else:
+        render_state.gopher_01 = GopherRenderingStateZone01.RISING_SPRITE
+        render_state.gopher_rising_px_start = y_pos  # [7, 34]
+
+
+def update_gopher_00_sprite():
+    if ram[gopherVertPos] == VERT_POS_GOPHER_UNDERGROUND:
+        render_state.gopher_00 = GopherRenderingStateZone00.NULL_SPRITE
         return
 
-    if a != VERT_POS_GOPHER_ABOVE_GROUND - 1:
-        set_zone01_gopher_graphic_values()
+    if ram[gopherVertPos] == VERT_POS_GOPHER_ABOVE_GROUND:
+        render_state.gopher_00 = GopherRenderingStateZone00.RUNNING_00
         return
 
-    a = ram[gopherTauntTimer]
-    if a != 0:
-        decrement_gopher_taunt_timer()
-        return
-    # x = <[GopherTauntAudioValues - AudioValues]
-    set_game_audio_values((__GopherTauntAudioValues - __AudioValues) & 0xFF)
-
-    a = 28
-    ram[gopherTauntTimer] = a
-
-    # Unconditional branch
-    set_zone01_gopher_graphic_values()
-
-
-def decrement_gopher_taunt_timer():
-    ram[gopherTauntTimer] = byte_decrement(ram[gopherTauntTimer])
-    a = ram[gopherTauntTimer]
-
-    if a != 0:
-        set_zone01_gopher_graphic_values()
-        return
-
-    ram[gopherTauntTimer] = a
-
-    # Fall through
-    set_zone01_gopher_graphic_values()
-
-
-def set_zone01_gopher_graphic_values():
-    a = ram[gopherVertPos]
-    carry = 1 if a >= VERT_POS_GOPHER_UNDERGROUND + 7 else 0
-    if a < VERT_POS_GOPHER_UNDERGROUND + 7:
-        disable_zone01_gopher_sprite(carry)
-        return
-
-    a = (__RisingGopherSprite + H_RISING_GOPHER - 1) & 0xFF
-    a, carry = sbc_with_carry(a, ram[gopherVertPos])
-    ram[zone01_GopherGraphicsPtrs] = a
-
-    # Jump
-    determine_gopher_nusiz_value(carry)
-
-
-def disable_zone01_gopher_sprite(carry):
-    a = __NullSprite_LOW
-    ram[zone01_GopherGraphicsPtrs] = a
-
-    # Fall through
-    determine_gopher_nusiz_value(carry)
-
-
-def determine_gopher_nusiz_value(carry):
-    x = ram[gopherVertPos]
-    if x == 0:
-        disable_zone00_gopher_sprite(carry)
-        return
-
-    carry = 1 if x >= VERT_POS_GOPHER_ABOVE_GROUND else 0
-    if x == VERT_POS_GOPHER_ABOVE_GROUND:
-        initiate_gopher_running_above_ground(carry)
-        return
-
-    a = MSBL_SIZE1 | DOUBLE_SIZE
-    if x < VERT_POS_GOPHER_UNDERGROUND + 7:
-        set_zone00_gopher_graphic_values(a)
-        return
-    a = MSBL_SIZE1 | ONE_COPY
-
-    # Fall through
-    set_zone00_gopher_graphic_values(a)
-
-
-def set_zone00_gopher_graphic_values(a):
-    ram[gopherNUSIZValue] = a
-    a = ram[zone01_GopherGraphicsPtrs]
-    # In asm using:  adc #H_CARROT ; but that makes way less sense and has the same value
-    a, carry = adc_with_carry(a, __NullRunningGopher - __NullSprite)
-
-    ram[zone00_GopherGraphicsPtrs] = a
-    a = ram[zone01_GopherGraphicsPtrs + 1]
-    ram[zone00_GopherGraphicsPtrs + 1] = a
-
-    # Jump
-    set_zone02_gopher_graphic_values(carry)
-
-
-def disable_zone00_gopher_sprite(carry):
-    a = MSBL_SIZE1 | DOUBLE_SIZE
-    ram[gopherNUSIZValue] = a
-    a = __NullSprite_LOW
-    ram[zone00_GopherGraphicsPtrs] = a
-    a = __NullSprite_HIGH
-    ram[zone00_GopherGraphicsPtrs + 1] = a
-
-    # Jump
-    set_zone02_gopher_graphic_values(carry)
-
-
-def initiate_gopher_running_above_ground(carry):
-    a = (__RunningGopher_00 - 1) & 0xFF
-    ram[zone00_GopherGraphicsPtrs] = a
-    a = __RunningGopher_00_HIGH
-    ram[zone00_GopherGraphicsPtrs + 1] = a
-    a = MSBL_SIZE1 | DOUBLE_SIZE
-    ram[gopherNUSIZValue] = a
-
-    # Fall through
-    set_zone02_gopher_graphic_values(carry)
-
-
-def set_zone02_gopher_graphic_values(carry):
-    a = ram[gopherVertPos]
-    if a == 0:
-        initiate_gopher_running_underground(carry)
-        return
-
-    carry = 1 if a >= VERT_POS_GOPHER_UNDERGROUND + 7 else 0
-    if a < VERT_POS_GOPHER_UNDERGROUND + 7:
-        initiate_gopher_running_underground(carry)
-        return
-
-    carry = 1 if a >= VERT_POS_GOPHER_ABOVE_GROUND - 13 else 0
-    if a >= VERT_POS_GOPHER_ABOVE_GROUND - 13:
-        animate_taunting_gopher_section(carry)
-        return
-
-    a = MSBL_SIZE1 | ONE_COPY
-    ram[gopherNUSIZValue] = a
-    a = ram[zone01_GopherGraphicsPtrs]
-    a, carry = sbc_with_carry(a, H_GROUND_KERNEL_SECTION)
-    ram[zone02_GopherGraphicsPtrs] = a
-
-    # Jump
-    animate_taunting_gopher_subsection(carry)
-
-
-def initiate_gopher_running_underground(carry):
-    a = __RunningGopher_00_LOW
-    ram[zone02_GopherGraphicsPtrs] = a
-    a = __RunningGopher_00_HIGH
-    ram[zone02_GopherGraphicsPtrs + 1] = a
-    a = MSBL_SIZE1 | DOUBLE_SIZE
-    ram[gopherNUSIZValue] = a
-
-    # Jump
-    animate_taunting_gopher_subsection(carry)
-
-
-def animate_taunting_gopher_section(carry):
-    a = __NullSprite_LOW
-    ram[zone02_GopherGraphicsPtrs] = a
-    a = __NullSprite_HIGH
-    ram[zone02_GopherGraphicsPtrs + 1] = a
-
-    # Fall through
-    animate_taunting_gopher_subsection(carry)
-
-
-def animate_taunting_gopher_subsection(carry):
-    a = ram[gopherTauntTimer]
-    if a == 0:
-        set_gopher_crawling_animation(carry)
-        return
-
-    if a < 7 * 3:
-        check_taunting_gopher_animation_stage02(a)
-        return
-
-    # Fall through
-    set_taunt_gopher_sprite00()
-
-
-def set_taunt_gopher_sprite00():
-    a = __GopherTauntSprite_00_LOW
-    ram[zone00_GopherGraphicsPtrs] = a
-    a = __GopherTauntSprite_00_HIGH
-    ram[zone00_GopherGraphicsPtrs + 1] = a
-
-    determine_taunting_gopher_facing_direction()
-
-
-def check_taunting_gopher_animation_stage02(a):
-    if a < 7 * 2:
-        taunting_gopher_animation_stage03(a)
-        return
-
-    # Fall through
-    set_taunt_gopher_sprite01()
-
-
-def set_taunt_gopher_sprite01():
-    a = __GopherTauntSprite_01_LOW
-    ram[zone00_GopherGraphicsPtrs] = a
-    a = __GopherTauntSprite_01_HIGH
-    ram[zone01_GopherGraphicsPtrs + 1] = a
-
-    determine_taunting_gopher_facing_direction()
-
-
-def taunting_gopher_animation_stage03(a):
-    if a < 7:
-        set_taunt_gopher_sprite01()
-        return
-    elif a >= 7:
-        set_taunt_gopher_sprite00()
-        return
-
-    # Never reached
-
-
-def determine_taunting_gopher_facing_direction():
-    a = ram[gopherHorizPos]
-    a, carry = sbc_with_carry(a, ram[farmerHorizPos])
-
-    if carry == 1:
-        face_taunting_gopher_left(carry)
-        return
-
-    a = ram[gopherHorizMovementValues]
-    if is_positive(a):
-        set_gopher_crawling_animation(carry)
-        return
-
-    a = a & flip_byte(GOPHER_HORIZ_DIR_MASK)
-    ram[gopherHorizMovementValues] = a
-    ram[gopherHorizPos] = byte_increment(ram[gopherHorizPos])
-    a = REFLECT
-    ram[gopherReflectState] = a
-
-    # Jump
-    set_gopher_crawling_animation(carry)
-
-
-def face_taunting_gopher_left(carry):
-    a = ram[gopherHorizMovementValues]
-    if is_negative(a):
-        set_gopher_crawling_animation(carry)
-        return
-
-    a = a | GOPHER_TRAVEL_LEFT
-    ram[gopherHorizMovementValues] = a
-    a = NO_REFLECT
-    ram[gopherReflectState] = a
-    ram[gopherHorizPos] = byte_decrement(ram[gopherHorizPos])
-
-    # Fall through
-    set_gopher_crawling_animation(carry)
-
-
-def set_gopher_crawling_animation(carry):
-    x = ram[gopherVertPos]
-    if x != 0:
-        # calculate carry for random
-        carry = 1 if x >= VERT_POS_GOPHER_ABOVE_GROUND else 0
-
-        if x != VERT_POS_GOPHER_ABOVE_GROUND:
-            new_frame(carry)
-            return
-
-    a = ram[frameCount] & 3
-    if a != 0:
-        skip_gopher_animation_rate_flip(x, carry)
-        return
-
-    a = ram[gopherHorizAnimationRate]
-    a = flip_byte(a)
-    ram[gopherHorizAnimationRate] = a
-
-    # Fall through
-    check_to_animate_crawling_gopher(a, x, carry)
-
-
-def check_to_animate_crawling_gopher(a, x, carry):
-    if a == 0:
-        new_frame(carry)
-        return
-
-    a = __RunningGopher_01_LOW
-
-    # Calculate carry for random
-    carry = 1 if x >= VERT_POS_GOPHER_UNDERGROUND else 0
-
-    if x != VERT_POS_GOPHER_UNDERGROUND:
-        init_above_ground_running_gopher_sprite(a, carry)
-        return
-
-    ram[zone02_GopherGraphicsPtrs] = a
-
-    # Fall through => Jump
-    new_frame(carry)
-
-
-def skip_gopher_animation_rate_flip(x, carry):
-    a = ram[gopherHorizAnimationRate]
-    # Jump
-    check_to_animate_crawling_gopher(a, x, carry)
-
-
-def init_above_ground_running_gopher_sprite(a, carry):
-    ram[zone00_GopherGraphicsPtrs] = a
-
-    # Unconditional branch
-    new_frame(carry)
-
-
-def carrot_stolen_by_gopher(carry):
-    a = __NullSprite_LOW
-    ram[zone02_GopherGraphicsPtrs] = a
-    ram[zone01_GopherGraphicsPtrs] = a
-    ram[zone00_GopherGraphicsPtrs] = a
-    a = __NullSprite_HIGH
-    ram[zone02_GopherGraphicsPtrs + 1] = a
-    ram[zone01_GopherGraphicsPtrs + 1] = a
-    ram[zone00_GopherGraphicsPtrs + 1] = a
-
-    a = WAIT_TIME_CARROT_STOLEN
-    ram[frameCount] = a
-    # x = <[StolenCarrotAudioValues - AudioValues]
-
-    set_game_audio_values((__StolenCarrotAudioValues - __AudioValues) & 0xFF)
-
-    # Fall through => Jump
-    advance_current_game_state(carry)
-
-
-def wait_for_action_button_to_start_round(carry):
-    a = ram[carrotPattern]
-    if a == 0:
+    if render_state.gopher_01 == GopherRenderingStateZone01.NULL_SPRITE:
+        render_state.gopher_00 = GopherRenderingStateZone00.NULL_RUNNING
+    elif render_state.gopher_01 == GopherRenderingStateZone01.RISING_SPRITE:
+        render_state.gopher_00 = GopherRenderingStateZone00.RISING_SPRITE_MATCHING
+    else:
+        raise Exception(f"Unknown GopherRenderingStateZone01: {render_state.gopher_01}")
+
+    # TODO: Understand this sprite logic
+    # ram[zone00_GopherGraphicsPtrs] = ram[zone01_GopherGraphicsPtrs] + (__NullRunningGopher - __NullSprite)
+    # ram[zone00_GopherGraphicsPtrs + 1] = ram[zone01_GopherGraphicsPtrs + 1]
+
+
+def update_gopher_02_sprite():
+    y_pos = ram[gopherVertPos]
+
+    if y_pos == VERT_POS_GOPHER_UNDERGROUND:
+        render_state.gopher_02 = GopherRenderingStateZone02.RUNNING_00
+    elif y_pos < VERT_POS_GOPHER_UNDERGROUND + 7:
+        render_state.gopher_02 = GopherRenderingStateZone02.RUNNING_00
+    elif y_pos >= VERT_POS_GOPHER_ABOVE_GROUND - 13:
+        render_state.gopher_02 = GopherRenderingStateZone02.NULL_SPRITE
+    else:
+        if render_state.gopher_01 == GopherRenderingStateZone01.NULL_SPRITE:
+            raise Exception("Should never be the case")
+        elif render_state.gopher_01 == GopherRenderingStateZone01.RISING_SPRITE:
+            render_state.gopher_02 = GopherRenderingStateZone02.RISING_SPIRE_MATCHING
+        else:
+            raise Exception(f"Unknown gopher_01 sprite: {render_state.gopher_01}")
+
+
+def animate_taunting_gopher():
+    if ram[gopherTauntTimer] < 7:
+        render_state.gopher_00 = GopherRenderingStateZone00.TAUNT_SPRITE_01
+    elif ram[gopherTauntTimer] < 14:
+        render_state.gopher_00 = GopherRenderingStateZone00.TAUNT_SPRITE_00
+    elif ram[gopherTauntTimer] < 21:
+        render_state.gopher_00 = GopherRenderingStateZone00.TAUNT_SPRITE_01
+    else:
+        render_state.gopher_00 = GopherRenderingStateZone00.TAUNT_SPRITE_00
+
+
+def animate_crawling_gopher() -> int:
+    y_pos = ram[gopherVertPos]
+
+    # No crawling
+    if y_pos != VERT_POS_GOPHER_UNDERGROUND and y_pos != VERT_POS_GOPHER_ABOVE_GROUND:
+        assert y_pos < VERT_POS_GOPHER_ABOVE_GROUND
+        return 0
+
+    # Skip every 4 frames
+    if (ram[frameCount] & 3) == 0:
+        ram[gopherHorizAnimationRate] = flip_byte(ram[gopherHorizAnimationRate])
+
+    if ram[gopherHorizAnimationRate] == 0:
+        return 1 if y_pos != VERT_POS_GOPHER_UNDERGROUND else 0
+
+    if y_pos != VERT_POS_GOPHER_UNDERGROUND:
+        render_state.gopher_00 = GopherRenderingStateZone00.RUNNING_01
+    else:
+        render_state.gopher_02 = GopherRenderingStateZone02.RUNNING_01
+
+    assert y_pos >= VERT_POS_GOPHER_UNDERGROUND
+    return 1
+
+
+def carrot_stolen_by_gopher():
+    render_state.gopher_00 = GopherRenderingStateZone00.NULL_SPRITE
+    render_state.gopher_01 = GopherRenderingStateZone01.NULL_SPRITE
+    render_state.gopher_02 = GopherRenderingStateZone02.NULL_SPRITE
+
+    ram[frameCount] = WAIT_TIME_CARROT_STOLEN
+    set_game_audio_values(__StolenCarrotAudioValues - __AudioValues)
+    advance_current_game_state(carry=0)
+
+
+def wait_for_action_button_to_start_round():
+    if ram[carrotPattern] == 0:
         # No carrots left
-        advance_current_game_state(carry)
+        advance_current_game_state(carry=0)
         return
 
-    a = intpt4_value()
-    x = ram[gameSelection]
-
-    if not is_positive(x):
-        # Player two?
-        a = intpt5_value()
-
-    a = a & ACTION_MASK
-    if is_negative(a):
-        # Not pressed
-        new_frame(carry)
-        return
-
-    a = GS_CHECK_FARMER_MOVEMENT
-    ram[gameState] = a
+    action_button = (intpt5_value() if is_second_player_active() else intpt4_value()) & ACTION_MASK
+    if action_button == 0:
+        # Pressed
+        ram[gameState] = GS_MAIN_GAME_LOOP
 
     # Jump
-    new_frame(carry)
+    end_of_frame(carry=0)
 
 
-def wait_to_start_new_game(carry):
-    # Really not sure why this exists
-    # Best guess: Wait till music finished playing, to make sure player can not accidently skip game over screen
-    x = ram[leftAudioIndexValue]
-    a = AudioValues[x]
-    if a != 0:
+def wait_to_start_new_game():
+    # AudioValues? Really not sure why this exists
+    # Best guess: Wait till music finished playing, to make sure player can not accidentally skip game over screen
+    # Otherwise: if action button not pressed
+    if AudioValues[leftAudioIndexValue] != 0 or (intpt4_value() & ACTION_MASK) != 0:
         decrement_current_game_state()
         return
 
-    a = intpt4_value()
-
-    if is_negative(a):
-        # action button not pressed
-        decrement_current_game_state()
-        return
-
-    a = 0
-    x = 9
-
-    # Fall through
-    init_player_information_values(a, x, carry)
+    init_player_information_values()
 
 
-def init_player_information_values(a, x, carry):
-    while True:
-        ram[playerInformationValues + x] = a
-        x = byte_decrement(x)
-        if not is_positive(x):
-            break
+def init_player_information_values():
+    for offset in range(10):
+        ram[playerInformationValues + offset] = 0
 
-    a = 7
-    ram[carrotPattern] = a
-    ram[reservedPlayerCarrotPattern] = a
-    a = 15
-    ram[initGopherChangeDirectionTimer] = a
-    ram[reservedGopherChangeDirectionTimer] = a
-    a = ram[gameSelection] & GAME_SELECTION_MASK
-    ram[gameSelection] = a
-    a = WAIT_TIME_GAME_START
-    ram[frameCount] = a
-    a = GS_DISPLAY_GAME_SELECTION
-    ram[gameState] = a
-    # x = <[StartingThemeAudioValues_00 - AudioValues]
-    set_game_audio_values((__StartingThemeAudioValues_00 - __AudioValues) & 0xFF)
-    # x = #<[StartingThemeAudioValues_01 - AudioValues]
-    set_game_audio_values((__StartingThemeAudioValues_01 - __AudioValues) & 0xFF)
+    ram[carrotPattern] = 7
+    ram[reservedPlayerCarrotPattern] = 7
+    ram[initGopherChangeDirectionTimer] = 15
+    ram[reservedGopherChangeDirectionTimer] = 15
+    # Remove current active player bit
+    ram[gameSelection] &= GAME_SELECTION_MASK
+    ram[frameCount] = WAIT_TIME_GAME_START
+    ram[gameState] = GS_DISPLAY_GAME_SELECTION
 
-    # Jump
-    init_game_round_data(carry)
+    set_game_audio_values(__StartingThemeAudioValues_00 - __AudioValues)
+    set_game_audio_values(__StartingThemeAudioValues_01 - __AudioValues)
+
+    init_game_round_data(carry=0)
 
 
-# Alternate players every 128 frames
+# Alternate players every 256 frames
 # To show score after game ended (all carrots are gone for both players)
 def decrement_current_game_state():
-    a = ram[frameCount]
-    carry = 1 if a >= 128 else 0
-    if a != 128:
-        new_frame(carry)
+    carry = 1 if ram[frameCount] >= 128 else 0
+    if ram[frameCount] != 128:
+        end_of_frame(carry)
         return
 
-    a = ram[gameSelection] & 1
-    if a == 0:
-        # One player game
-        new_frame(carry)
+    if is_single_player_game():
+        end_of_frame(carry)
         return
 
-    ram[gameState] = byte_decrement(ram[gameState])
-
-    # Jump
-    alternate_players(carry)
+    ram[gameState] -= 1
+    alternate_player_information(carry)
 
 
-def check_to_alternate_players(carry):
-    a = ram[gameSelection] & 1
-    if a == 0:
-        # one player game
-        check_for_game_over_state(carry)
+def check_to_alternate_players():
+    if is_single_player_game():
+        check_for_game_over_state()
         return
 
-    a = ram[reservedPlayerCarrotPattern]
-    if a != 0:
-        alternate_players(carry)
+    # If other player still has carrots, alternate them
+    if ram[reservedPlayerCarrotPattern] != 0:
+        alternate_player_information(carry=0)
         return
 
-    # Fall through
-    check_for_game_over_state(carry)
+    # If both players are out of carrots, game over
+    check_for_game_over_state()
 
 
-def check_for_game_over_state(carry):
-    a = ram[carrotPattern]
-    if a != 0:
-        advance_current_game_state(carry)
+def check_for_game_over_state():
+    if ram[carrotPattern] != 0:
+        advance_current_game_state(carry=0)
         return
 
-    # x = <[GameOverThemeAudioValues_00 - AudioValues]
-    set_game_audio_values((__GameOverThemeAudioValues_00 - __AudioValues) & 0xFF)
-    # x = <[GameOverThemeAudioValues_01 - AudioValues]
-    set_game_audio_values((__GameOverThemeAudioValues_01 - __AudioValues) & 0xFF)
+    set_game_audio_values(__GameOverThemeAudioValues_00 - __AudioValues)
+    set_game_audio_values(__GameOverThemeAudioValues_01 - __AudioValues)
 
-    a = GS_WAIT_FOR_NEW_GAME
-    ram[gameState] = a
-
-    # Unconditional branch
-    new_frame(carry)
+    ram[gameState] = GS_WAIT_FOR_NEW_GAME
+    end_of_frame(carry=0)
 
 
-def alternate_players(carry):
-    a = ram[gameSelection] & 1
-    if a == 0:
-        # one player game
-        advance_current_game_state(carry)
-        return
+def alternate_player_information(carry):
+    if not is_single_player_game():
+        # Toggle active player bits
+        ram[gameSelection] ^= ACTIVE_PLAYER_MASK
 
-    a = ram[gameSelection]
-    a = exclusive_or(a, ACTIVE_PLAYER_MASK)
-    ram[gameSelection] = a
-    x = 4
+        for offset in range(4):
+            temp = ram[currentPlayerInformation + offset]
+            ram[currentPlayerInformation + offset] = ram[reservedPlayerInformation + offset]
+            ram[reservedPlayerInformation + offset] = temp
 
-    while True:
-        a = ram[currentPlayerInformation + x]
-        ram[tmpCurrentPlayerData] = a
-        a = ram[reservedPlayerInformation + x]
-        ram[currentPlayerInformation + x] = a
-        a = ram[tmpCurrentPlayerData]
-        ram[reservedPlayerInformation + a] = a
-
-        x = byte_decrement(x)
-
-        if not is_positive(x):
-            break
-
-    # Fall through
     advance_current_game_state(carry)
 
 
 def advance_current_game_state(carry):
-    ram[gameState] = byte_increment(ram[gameState])
-
-    # Fall through
-    new_frame(carry)
+    ram[gameState] += 1
+    end_of_frame(carry)
 
 
-def new_frame(carry):
-    """
-    .waitTime
-   lda INTIM
-   bne .waitTime
-   lda #START_VERT_SYNC
-   sta WSYNC                        ; wait for next scan line
-   sta VSYNC                        ; start vertical sync (D1 = 1)
-   lda #VSYNC_TIME
-   sta TIM8T
-.vsyncWaitTime
-   lda INTIM
-   bne .vsyncWaitTime
-    """
-
-    # vertical_blank()
+def end_of_frame(carry):
     global has_hit_new_frame
     has_hit_new_frame = True
     global hit_new_frame_carry_status
     hit_new_frame_carry_status = carry
 
 
-# Six digit display kernel omitted
-# PositionObjectHorizontally omitted
+def increment_score(amount):
+    for score_byte_offset in reversed(range(3)):
+        new_byte_value, carry = adc_bcd_with_carry(amount, ram[currentPlayerScore + score_byte_offset], carry_flag=1)
+        ram[currentPlayerScore + score_byte_offset] = new_byte_value
+
+        if carry == 0:
+            # No carry, meaning no further byte will be modified
+            return
+
+        if score_byte_offset == 2:
+            # Will modify next 100 digit in next iteration
+            check_to_decrement_gopher_direction_timer()
+            check_to_spawn_duck()
+
+        amount = 0
 
 
-def increment_score(a):
-    # print("ADD SCORE!", byte_to_bcd_number(a + 1))
-    # sed
-    x = 2
-    carry = 1
-
-    # Fall through
-    increment_score_submodule(a, x, carry)
-
-
-def increment_score_submodule(a, x, carry):
-    a, carry = adc_bcd_with_carry(a, ram[currentPlayerScore + x], carry)
-    ram[currentPlayerScore + x] = a
-
-    if carry == 0:
-        done_increment_score()
+def check_to_decrement_gopher_direction_timer():
+    # Check if 000X00 digit in score is even (0) or odd (1)
+    if (ram[currentPlayerScore + 1] & 1) != 0:
         return
 
-    if x == 2:
-        check_to_decrement_gopher_direction_timer(x)
+    # Decrement gopher change direction timer (making game harder)
+    if ram[initGopherChangeDirectionTimer] > 1:
+        ram[initGopherChangeDirectionTimer] -= 1
+
+
+def check_to_spawn_duck():
+    # Duck not enabled
+    # or still full carrots
+    # or seed (with / without duck) already visible
+    if not is_duck_enabled() or ram[carrotPattern] == 7 or not is_msb_set(ram[fallingSeedVertPos]):
         return
 
-    # Fall through
-    increment_next_score_value(x)
+    # Get 000X00 digit in score
+    score_100_digit = ram[currentPlayerScore + 1] & 0x0F
 
-
-def increment_next_score_value(x):
-    carry = 1
-    a = 1 - 1
-    x = byte_decrement(x)
-    if is_positive(x):
-        increment_score_submodule(a, x, carry)
+    # Spawn duck if you went from a xxx4xx score to a xxx5xx score
+    # or if you went from a xxx9xx score to a xxx0xx score
+    if score_100_digit != 4 and score_100_digit != 9:
         return
 
-    # Fall through
-    done_increment_score()
+    # Set duck attributes to random byte
+    new_attributes = ram[random]
+    ram[duckAttributes] = new_attributes
+
+    # Spawn at left or right edge of screen
+    duck_spawn_x = XMAX_DUCK if is_msb_set(new_attributes) else XMIN_DUCK
+    # Spawn seed with specific offset to duck
+    seed_spawn_x = XMAX - 19 if is_msb_set(new_attributes) else XMIN_DUCK + 8
+
+    ram[duckHorizPos] = duck_spawn_x
+    ram[fallingSeedHorizPos] = seed_spawn_x
+
+    seed_target_pos = new_attributes & SEED_TARGET_HORIZ_POS_MASK
+
+    # Farmer can only move from 20 to 148, so he can reach seeds in range [16, 152]
+    # Max spawned seed position is 127 (because of max activated bits are 0b0111 1111)
+    # Min spawned seed position is 0, but is now modified to 20
+    if seed_target_pos < 20:
+        # Move target farther to the right
+        # Keep direction but overwrite rest with center seed position (position 79)
+        ram[duckAttributes] = (ram[duckAttributes] & DUCK_HORIZ_DIR_MASK) | ((XMAX + 1) // 2)
+
+    # Note: This means seeds will most likely drop in the very center
+    #       Otherwise, seeds are more likely to spawn on the left side than the right side
+
+    init_duck_state()
 
 
-def done_increment_score():
-    # cld
-    # rts
-    pass
+def init_duck_state():
+    ram[duckAnimationTimer] = INIT_DUCK_ANIMATION_TIMER
+    render_state.duck_wings = DuckWingRenderingState.STATIONARY
+    render_state.duck_face = DuckFaceRenderingState.FACE
 
-
-def check_to_decrement_gopher_direction_timer(x):
-    a = ram[currentPlayerScore + 1] & 1
-    if a != 0:
-        check_to_launch_duck(x)
-        return
-
-    dec_result = byte_decrement(ram[initGopherChangeDirectionTimer])
-    ram[initGopherChangeDirectionTimer] = dec_result
-    if dec_result != 0:
-        check_to_launch_duck(x)
-        return
-
-    ram[initGopherChangeDirectionTimer] = byte_increment(ram[initGopherChangeDirectionTimer])
-
-    # Fall through
-    check_to_launch_duck(x)
-
-
-def check_to_launch_duck(x):
-    a = ram[currentPlayerScore + 1] & 0x0F
-    if a == 4:
-        check_game_selection_for_duck(x)
-        return
-
-    if a != 9:
-        increment_next_score_value(x)
-        return
-
-    # Fall through
-    check_game_selection_for_duck(x)
-
-
-def check_game_selection_for_duck(x):
-    a = ram[gameSelection] & GAME_SELECTION_MASK
-
-    if a >= 2:
-        increment_next_score_value(x)
-        return
-
-    a = ram[carrotPattern]
-    if a == 7:
-        increment_next_score_value(x)
-        return
-
-    a = ram[fallingSeedVertPos]
-    if is_positive(a):
-        increment_next_score_value(x)
-        return
-
-    a = XMIN_DUCK
-    y = ram[random]
-    ram[duckAttributes] = y
-
-    # => php push - Simulated with extra register, because it seems only y is relevant
-    pushed_state = y
-
-    if is_positive(y):
-        init_duck_horizontal_position(a, x, y, pushed_state)
-        return
-
-    a = XMAX_DUCK
-
-    # Fall through
-    init_duck_horizontal_position(a, x, y, pushed_state)
-
-
-def init_duck_horizontal_position(a, x, y, pushed_state):
-    ram[duckHorizPos] = a
-    a = XMIN_DUCK + 8
-
-    # => plp pop - Simulated with extra register, because it seems only y is relevant
-    if not is_positive(pushed_state):
-        a = XMAX - 19
-
-    ram[fallingSeedHorizPos] = a
-    a = y & SEED_TARGET_HORIZ_POS_MASK  # duck attributes
-
-    if a >= (XMAX + 1) // 8:
-        init_duck_sprite_values(x)
-        return
-
-    a = ram[duckAttributes] & DUCK_HORIZ_DIR_MASK
-    a = a | ((XMAX + 1) // 2)
-    ram[duckAttributes] = a
-
-    # Fall through
-    init_duck_sprite_values(x)
-
-
-def init_duck_sprite_values(x):
-    a = INIT_DUCK_ANIMATION_RATE
-    ram[duckAnimationRate] = a
-    a = __DuckWingsStationaryGraphics_LOW
-    ram[duckLeftGraphicPtrs] = a
-    a = __DuckWingsStationaryGraphics_HIGH
-    ram[duckLeftGraphicPtrs + 1] = a
-    a = __DuckFaceGraphics_LOW
-    ram[duckRightGraphicPtrs] = a
-    a = __DuckFaceGraphics_HIGH
-    ram[duckRightGraphicPtrs + 1] = a
-    a = INIT_SEED_VERT_POS
-    ram[fallingSeedVertPos] = a
-    a = 0
-    ram[heldSeedDecayingTimer] = a
-
-    # Jump
-    increment_next_score_value(x)
+    ram[fallingSeedVertPos] = INIT_SEED_VERT_POS
+    ram[heldSeedDecayingTimer] = 0
 
 
 def next_random(carry: int):
-    # print("next random with carry", carry)
-    x = ram[random + 1]
-    y = ram[random]
+    start_random_1 = ram[random + 1]
+    start_random_0 = ram[random]
 
     ram[random], carry = roll_left_with_carry(ram[random], carry)
     ram[random + 1], carry = roll_left_with_carry(ram[random + 1], carry)
 
-    a = ram[random]
-    a, carry = adc_with_carry(a, 195, carry)
-    ram[random] = a
+    ram[random], carry = adc_with_carry(ram[random], 195, carry)
 
-    a = y
-    a = exclusive_or(a, ram[random])
-    ram[random] = a
-
-    a = x
-    a = exclusive_or(a, ram[random + 1])
-    ram[random + 1] = a
-
-    # rts: not necessary in python
-    pass
+    ram[random] = exclusive_or(start_random_0, ram[random])
+    ram[random + 1] = exclusive_or(start_random_1, ram[random + 1])
 
 
-def determine_dirt_floor_index(a):
-    a = a >> 2
-    y = a
-
-    if a >= (XMAX + 1) // 8:
-        # Carry always 1, because compare has a >= memory
-        a, _ = sbc_with_carry(a, (XMAX + 1) // 8, carry_flag=1)
-
-    x = 0
-
-    while True:
-        if y < LEFT_PF1_PIXEL_OFFSET:
-            break
-        x = byte_increment(x)
-        if y < LEFT_PF2_PIXEL_OFFSET:
-            break
-        x = byte_increment(x)
-        if y < RIGHT_PF0_PIXEL_OFFSET:
-            break
-        x = byte_increment(x)
-        if y < RIGHT_PF1_PIXEL_OFFSET:
-            break
-        x = byte_increment(x)
-        if y < RIGHT_PF2_PIXEL_OFFSET:
-            break
-        x = byte_increment(x)
-        break
-
-    y = a
-
-    # rts
-    return x, y
+offset_map = []
+for i in range(PIXEL_BITS_PF0):
+    offset_map.append(0)
+for i in range(PIXEL_BITS_PF1):
+    offset_map.append(1)
+for i in range(PIXEL_BITS_PF2):
+    offset_map.append(2)
+for i in range(PIXEL_BITS_PF0):
+    offset_map.append(3)
+for i in range(PIXEL_BITS_PF1):
+    offset_map.append(4)
+for i in range(PIXEL_BITS_PF2):
+    offset_map.append(5)
 
 
-def set_game_audio_values(x):
-    # Ignoring y.
-    # This will lead to an incorrect value in tmpGameAudioSavedY, but thats fine
-    # No other side-effects, as far as I understand
+def calculate_x_dirt_memory_offset(x_pos):
+    return offset_map[x_pos // 4], (x_pos // 4) % 20
 
-    # ram[tmpGameAudioSavedY] = y
+
+def set_game_audio_values(audio_offset):
+    # Play audio on next audio channel
     ram[audioChannelIndex] = byte_increment(ram[audioChannelIndex])
-    a = 1 & ram[audioChannelIndex]
-    y = a
-    a = AudioValues[x]
-    # sta AUDC0,y
-    x = byte_increment(x)
-    ram[audioIndexValues + y] = x
-    # y = ram[tmpGameAudioSavedY]
-    pass
+    # Audio byte 0 is usually the audio generator type, while the rest are the actual sound bytes
+    ram[audioIndexValues + (ram[audioChannelIndex] & 1)] = audio_offset + 1
 
 
-def play_game_audio_sounds(carry):
-    x = 1
-    return play_game_audio_sounds_submodule(x, carry)
+def play_game_audio(carry):
+    return play_game_audio_channel(1, carry)
 
 
-def play_game_audio_sounds_submodule(x, carry):
-    a = ram[audioDurationValues + x]
-    if a == 0:
-        return check_to_play_next_audio_frequency(x, carry)
+def play_game_audio_channel(audio_channel_idx, carry):
+    if ram[audioDurationValues + audio_channel_idx] == 0:
+        return check_to_play_next_audio_frequency(audio_channel_idx, carry)
 
-    ram[audioDurationValues + x] = byte_decrement(ram[audioDurationValues + x])
-
-    # Fall through
-    return next_audio_channel(x, carry)
+    ram[audioDurationValues + audio_channel_idx] -= 1
+    return play_next_audio_channel(audio_channel_idx, carry)
 
 
-def next_audio_channel(x, carry):
-    x = byte_decrement(x)
-    if is_positive(x):
-        return play_game_audio_sounds_submodule(x, carry)
+def play_next_audio_channel(audio_channel_idx, carry):
+    if audio_channel_idx > 0:
+        return play_game_audio_channel(audio_channel_idx - 1, carry)
 
-    # rts
     return carry
 
 
-def check_to_play_next_audio_frequency(x, carry):
-    y = ram[audioIndexValues + x]
-    a = 8
-    # sta AUDV0,x
-    a = AudioValues[y]
-    if a == 0:
-        # sta AUC0,x
-        # unconditional branch
-        return next_audio_channel(x, carry)
+def check_to_play_next_audio_frequency(audio_channel_idx, carry):
+    audio_value = AudioValues[ram[audioIndexValues + audio_channel_idx]]
+    if audio_value == 0:
+        # End of audio
+        return play_next_audio_channel(audio_channel_idx, carry)
 
-    # sta AUDF0,x
-    a = a & AUDIO_DURATION_MASK
-    if not is_negative(a):
-        a, carry = shift_right_with_carry(a)
+    a = audio_value & AUDIO_DURATION_MASK
 
+    shift_amount = 4 if is_positive(audio_value & AUDIO_DURATION_MASK) else 3
+
+    a = a >> (shift_amount - 1)
+    # Final shift with carry
     a, carry = shift_right_with_carry(a)
-    a, carry = shift_right_with_carry(a)
-    a, carry = shift_right_with_carry(a)
-    y = byte_increment(y)
-    # print("set audioIndexValues +", x, "=", y)
-    ram[audioIndexValues + x] = y
-    # print("set audioDurationValues +", x, "=", a)
-    ram[audioDurationValues + x] = a
 
-    # Jump
-    return next_audio_channel(x, carry)
+    ram[audioIndexValues + audio_channel_idx] += 1
+    ram[audioDurationValues + audio_channel_idx] = a
 
-
-def set_digit_graphic_pointers(y):
-    x = 0
-
-    # Fall through
-    return set_digit_graphic_pointers_submodule(x, y)
-
-
-def set_digit_graphic_pointers_submodule(x, y):
-    while True:
-        a = y
-        ram[digitGraphicPtrs + x] = a
-        a, carry = adc_with_carry(a, H_FONT)
-        y = a
-        a = ram[tmpDigitPointerMSB]
-        ram[digitGraphicPtrs + 1 + x] = a
-        x = byte_increment(x)
-        x = byte_increment(x)
-
-        carry = 1 if x >= ram[tmpEndGraphicPtrIdx] else 0
-        if x == ram[tmpEndGraphicPtrIdx]:
-            break
-
-    # rts
-    return x, carry
-
-
-def fill_in_tunnel(x, y):
-    a = DirtMaskingBits[y]
-    a = flip_byte(a) & ram[gardenDirtValues + x]
-    ram[gardenDirtValues + x] = a
-
-    # rts
+    return play_next_audio_channel(audio_channel_idx, carry)
 
 
 def swcha_value() -> int:
@@ -3346,7 +1806,7 @@ def swcha_value() -> int:
 def swchb_value() -> int:
     """
     Bit 7: Port difficulty switch player 1 (0 = amateur/B, 1 = pro/A)
-    Bit 6: Port difficulty switch player 2 (0 = amateur/B, 1 = pro/A)
+    Bit 6: Port difficulty switch player 0 (0 = amateur/B, 1 = pro/A)
     Bit 5: Not used
     Bit 4: Not used
     Bit 3: Color/BW switch (0 = BW, 1 = Color) => Not used by Gopher

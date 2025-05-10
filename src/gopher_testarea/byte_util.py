@@ -219,11 +219,12 @@ def compare_ram_states(current: list[int], expected: list[int],
                        info_message: str, ignored_ram_states,
                        ram_full_name_mapping,
                        show_matches: bool = False,
-                       exit_on_mismatch: bool = True):
+                       exit_on_mismatch: bool = True) -> list[int] | None:
     global prev_ram_compare
     assert len(current) == len(expected), "Different ram state lengths!"
 
     any_mismatch = False
+    mismatches: list[int] = []
     for i in range(len(current)):
         if i in ignored_ram_states:
             continue
@@ -233,6 +234,7 @@ def compare_ram_states(current: list[int], expected: list[int],
 
         if current_value != expected_value:
             any_mismatch = True
+            mismatches.append(i)
 
     if any_mismatch:
         print("#" * 20)
@@ -270,9 +272,9 @@ def compare_ram_states(current: list[int], expected: list[int],
         if exit_on_mismatch:
             sys.exit(5)
         else:
-            return False
+            return mismatches
 
-    return True
+    return None
 
 
 if __name__ == '__main__':

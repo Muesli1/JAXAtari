@@ -408,5 +408,5 @@ def run_with_multiple_processes(amount: int, name: str, file_chunk_size: int = 1
 
 
 if __name__ == '__main__':
-    # run_with_multiple_processes(100, "random")
+    # run_with_multiple_processes(20000, "random2")
     emulate_with_human_input()

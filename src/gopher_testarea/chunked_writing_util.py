@@ -1,5 +1,7 @@
 import os
 import re
+import zipfile
+from pathlib import Path
 
 import numpy as np
 from typing import Tuple, Callable, Generator, List
@@ -93,6 +95,47 @@ def get_next_free_run_id(
         return 0
 
     return max([get_run_id(x) for x in files]) + 1
+
+
+def first_npz_header(npz: str):
+    """Takes a path to an .npz file, which is a Zip archive of .npy files.
+    Returns the first npy file data as (name, shape, np.dtype).
+    """
+    with zipfile.ZipFile(npz) as archive:
+        for name in archive.namelist():
+            if not name.endswith('.npy'):
+                continue
+            npy = archive.open(name)
+            major_version, _ = np.lib.format.read_magic(npy)
+
+            if major_version == 1:
+                shape, fortran, dtype = np.lib.format.read_array_header_1_0(npy)
+            else:
+                assert major_version == 2, f"Unknown npy major version: {major_version}"
+                shape, fortran, dtype = np.lib.format.read_array_header_2_0(npy)
+            return name[:-4], shape, dtype
+
+    raise Exception("Could not find any npy file in the npz!")
+
+
+def count_array_pairs(
+        input_dir: str,
+        file_prefix: str
+):
+    pattern = os.path.join(input_dir, f"{file_prefix}_*.npz")
+    files = glob.glob(pattern)
+
+    if not files:
+        raise FileNotFoundError(f"No files found matching pattern: {pattern}")
+
+    total_amount = 0
+
+    for file_path in files:
+        # Get shape information without reading file data
+        name, shape, dtype = first_npz_header(file_path)
+        total_amount += shape[0]
+
+    return total_amount
 
 
 def load_array_pairs(

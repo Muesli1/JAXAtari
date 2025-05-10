@@ -1,22 +1,57 @@
 import numpy as np
+import tqdm
 
 from gopher_testarea.byte_util import compare_ram_states, byte_to_bcd_number
+from gopher_testarea.chunked_writing_util import count_array_pairs
 from gopher_testarea.debug_util import debug_show_game_field
 from gopher_testarea.gopher_logic import get_intpt4_input, set_intpt4_input, set_swcha_input, get_swcha_input, \
     MOVE_RIGHT, set_swchb_input, set_intpt5_input, MOVE_LEFT, get_frame_log, get_ram, start, RESET_MASK, \
     get_swchb_input, WAIT_TIME_GAME_START, playerInformationValues, clear_frame_log, get_has_hit_new_frame, \
-    set_has_hit_new_frame, vertical_blank, get_hit_new_frame_carry_status, current_ram_pointer, ram_name_area_mappings, \
+    set_has_hit_new_frame, update_game, get_hit_new_frame_carry_status, current_ram_pointer, ram_name_area_mappings, \
     ram_name_additional_mappings, gameState, carrotPattern, set_debug_frame_number, gameSelection, GAME_SELECTION_MASK, \
-    SELECT_MASK
+    SELECT_MASK, carrotTopGraphicPtrs, carrotGraphicsPtrs, displayingCarrotAttributes, duckLeftGraphicPtrs, \
+    duckGraphicPtrs, tmpGardenDirtIndex, farmerGraphicPtrs, tmpShovelVertTunnelIndex, digitGraphicPtrs, tmpMulti2, \
+    tmpMulti8, tmpEndGraphicPtrIdx, tmpDigitPointerMSB, gopherNUSIZValue, zone00_GopherGraphicsPtrs, \
+    zone01_GopherGraphicsPtrs, zone02_GopherGraphicsPtrs
 from src.gopher_testarea.chunked_writing_util import load_array_pairs
 from src.gopher_testarea.gopher_logic import gopherHorizPos, gopherReflectState, NO_REFLECT, gopherVertPos, \
-    VERT_POS_GOPHER_UNDERGROUND, gardenDirtValues, determine_dirt_floor_index, ACTION_MASK
+    VERT_POS_GOPHER_UNDERGROUND, gardenDirtValues, calculate_x_dirt_memory_offset, ACTION_MASK
 
 ignored_ram_states = [
     72,  # tmpSixDigitDisplayLoop - rendering
     93,  # fallingSeedScanline - rendering
 
-    124, 125, 126, 127  # most likely stack, or Stella internals
+    124, 125, 126, 127,  # most likely stack, or Stella internals
+
+    carrotTopGraphicPtrs + 0,
+    carrotTopGraphicPtrs + 1,
+    carrotGraphicsPtrs + 0,
+    carrotGraphicsPtrs + 1,
+    displayingCarrotAttributes + 0,
+    displayingCarrotAttributes + 1,
+    displayingCarrotAttributes + 2,
+    duckGraphicPtrs + 0,
+    duckGraphicPtrs + 1,
+    duckGraphicPtrs + 2,
+    duckGraphicPtrs + 3,
+
+    tmpGardenDirtIndex,
+
+    farmerGraphicPtrs + 0,
+    farmerGraphicPtrs + 1,
+
+    tmpShovelVertTunnelIndex,
+
+    digitGraphicPtrs + 0, digitGraphicPtrs + 1, digitGraphicPtrs + 2, digitGraphicPtrs + 3, digitGraphicPtrs + 4,
+    digitGraphicPtrs + 5, digitGraphicPtrs + 6, digitGraphicPtrs + 7, digitGraphicPtrs + 8, digitGraphicPtrs + 9,
+    digitGraphicPtrs + 10, digitGraphicPtrs + 11,
+
+    tmpMulti2, tmpMulti8, tmpEndGraphicPtrIdx, tmpDigitPointerMSB,
+
+    gopherNUSIZValue,
+    zone00_GopherGraphicsPtrs + 0, zone00_GopherGraphicsPtrs + 1,
+    zone01_GopherGraphicsPtrs + 0, zone01_GopherGraphicsPtrs + 1,
+    zone02_GopherGraphicsPtrs + 0, zone02_GopherGraphicsPtrs + 1,
 ]
 
 
@@ -40,7 +75,7 @@ def print_field(ram):
     else:
         gopher_target_y = 2
 
-    debug_show_game_field(ram, gardenDirtValues, determine_dirt_floor_index, gopher_target_x, gopher_target_y)
+    debug_show_game_field(ram, gardenDirtValues, calculate_x_dirt_memory_offset, gopher_target_x, gopher_target_y)
 
 
 def reset_action_input():
@@ -87,7 +122,9 @@ def translate_action(action: int):
 
 def compare_ram_states_with_log(expected: list[int], name: str):
     ram = get_ram()
-    if not compare_ram_states(ram, expected, name, ignored_ram_states, ram_full_name_mapping, exit_on_mismatch=False):
+    mismatches = compare_ram_states(ram, expected, name, ignored_ram_states, ram_full_name_mapping,
+                                    exit_on_mismatch=False)
+    if mismatches is not None:
 
         frame_log = get_frame_log()
         if len(frame_log) > 0:
@@ -97,13 +134,21 @@ def compare_ram_states_with_log(expected: list[int], name: str):
         else:
             print("= No log available =")
 
-        print()
-        print_field(ram)
-        print()
-        print("= EXPECTED FIELD =")
-        print()
-        print_field(expected)
-        print()
+        any_field_data_involved = False
+
+        for i in range(gardenDirtValues, gardenDirtValues + 24):
+            if i in mismatches:
+                any_field_data_involved = True
+                break
+
+        if any_field_data_involved:
+            print()
+            print_field(ram)
+            print()
+            print("= EXPECTED FIELD =")
+            print()
+            print_field(expected)
+            print()
 
         exit(5)
 
@@ -117,10 +162,10 @@ def reset_game(difficulty: int = 1, mode: int = 0, verbose: bool = False):
 
     reset_console_input()
 
-    # set difficulty - in gopher actually reversed than what is usual:
+    # set difficulty - in gopher:
     # Bit 7: Port difficulty switch player 1 (0 = amateur/B, 1 = pro/A)
-    # Bit 6: Port difficulty switch player 2 (0 = amateur/B, 1 = pro/A)
-    # We just set both, because ALE only supports only one player anyway
+    # Bit 6: Port difficulty switch player 0 (0 = amateur/B, 1 = pro/A)
+    # We just set both, because ALE only supports one player anyway
     set_swchb_input((get_swchb_input() & ~(1 << 7)) | (difficulty << 7))
     set_swchb_input((get_swchb_input() & ~(1 << 6)) | (difficulty << 6))
 
@@ -210,17 +255,19 @@ def get_score_number():
 def do_tick():
     clear_frame_log()
     set_has_hit_new_frame(False)
-    vertical_blank(get_hit_new_frame_carry_status())
+    update_game(get_hit_new_frame_carry_status())
     assert get_has_hit_new_frame(), "Tick did not hit new_frame! This is a serious error!"
 
 
-def create_and_print_ram_mapping():
+def create_ram_mapping(verbose: bool = False):
     full_name_mapping: dict[int, str] = {}
 
-    print("=" * 15, "RAM MAPPING", "=" * 15)
-    print()
-    print(current_ram_pointer, "BYTES OF RAM USED", 128 - current_ram_pointer, "BYTES FREE")
-    print("RAM mapping:")
+    if verbose:
+        print("=" * 15, "RAM MAPPING", "=" * 15)
+        print()
+        print(current_ram_pointer, "BYTES OF RAM USED", 128 - current_ram_pointer, "BYTES FREE")
+        print("RAM mapping:")
+
     for offset in range(current_ram_pointer):
         full_name = f"{ram_name_area_mappings[offset]}"
 
@@ -228,27 +275,29 @@ def create_and_print_ram_mapping():
         if len(additional_mappings) > 0:
             full_name += " / " + " / ".join(additional_mappings)
 
-        print(f"\t{offset:03}: {full_name}")
+        if verbose:
+            print(f"\t{offset:03}: {full_name}")
         full_name_mapping[offset] = full_name
 
     for offset in range(current_ram_pointer, 256):
         full_name_mapping[offset] = "unused"
 
-    print()
-    print("=" * 15, "RAM MAPPING", "=" * 15)
-    print()
+    if verbose:
+        print()
+        print("=" * 15, "RAM MAPPING", "=" * 15)
+        print()
 
     return full_name_mapping
 
 
-ram_full_name_mapping = create_and_print_ram_mapping()
+ram_full_name_mapping = create_ram_mapping()
 
 
 def test_gopher_logic(name: str):
     ram = get_ram()
 
-    reset_game(verbose=True)
-    print_field(ram)
+    reset_game()
+    # print_field(ram)
 
     prev_game_state = ram[gameState]
 
@@ -259,43 +308,49 @@ def test_gopher_logic(name: str):
 
     need_reset: bool = True
     i = 0
-    for expected_ram_state, info_array, new_run in load_array_pairs("ram_states/runs/" + name, "ram"):
 
-        action = int(info_array[0])
-        difficulty = int(info_array[1])
-        mode = int(info_array[2])
+    amount = count_array_pairs("ram_states/runs/" + name, "ram")
 
-        if new_run or need_reset:
-            num_resets += 1
-            table_key = f"Difficulty {difficulty} & mode {mode}"
-            mode_table[table_key] = mode_table.get(table_key, 0) + 1
-            reset_game(difficulty=difficulty, mode=mode)
-            need_reset = False
+    with tqdm.tqdm(total=amount, desc="Checking frames") as pbar:
 
-        # for i in range(20_000):
-        set_debug_frame_number(i + 1)
+        for expected_ram_state, info_array, new_run in load_array_pairs("ram_states/runs/" + name, "ram"):
 
-        # action = np.load(f"ram_states/runs/random/random_{i + 1:03}_action.npy").item()
+            action = int(info_array[0])
+            difficulty = int(info_array[1])
+            mode = int(info_array[2])
 
-        translate_action(action)
+            if new_run or need_reset:
+                num_resets += 1
+                table_key = f"Difficulty {difficulty} & mode {mode}"
+                mode_table[table_key] = mode_table.get(table_key, 0) + 1
+                reset_game(difficulty=difficulty, mode=mode)
+                need_reset = False
 
-        do_tick()
+            # for i in range(20_000):
+            set_debug_frame_number(i + 1)
 
-        if ram[gameState] != prev_game_state:
-            # print(f"{i + 1}:", "Advanced game state to", ram[gameState])
-            prev_game_state = ram[gameState]
+            # action = np.load(f"ram_states/runs/random/random_{i + 1:03}_action.npy").item()
 
-        # expected_ram_state = np.load(f"ram_states/runs/random/random_{i + 1:03}.npy")
-        # print(f"Comparing state {i + 1}...")
-        compare_ram_states_with_log(expected_ram_state.tolist(),
-                                    f"State {i + 1} | difficulty {difficulty}, mode {mode}")
+            translate_action(action)
 
-        if ram[carrotPattern] == 0:
-            print("Game over after frame", i + 1, f"(Score was {get_score_number()})")
-            need_reset = True
-            highscore = max(highscore, get_score_number())
+            do_tick()
 
-        i += 1
+            if ram[gameState] != prev_game_state:
+                # print(f"{i + 1}:", "Advanced game state to", ram[gameState])
+                prev_game_state = ram[gameState]
+
+            # expected_ram_state = np.load(f"ram_states/runs/random/random_{i + 1:03}.npy")
+            # print(f"Comparing state {i + 1}...")
+            compare_ram_states_with_log(expected_ram_state.tolist(),
+                                        f"State {i + 1} | difficulty {difficulty}, mode {mode}")
+
+            if ram[carrotPattern] == 0:
+                # print("Game over after frame", i + 1, f"(Score was {get_score_number()})")
+                need_reset = True
+                highscore = max(highscore, get_score_number())
+
+            i += 1
+            pbar.update(1)
 
     print()
     print(f"DONE! All {i} frames were correct! Highscore:", highscore)
@@ -303,8 +358,9 @@ def test_gopher_logic(name: str):
     print(f"In total reset {num_resets} times:")
     for (key, value) in mode_table.items():
         print(f"\t{key}: {value}x", )
+    print()
 
 
 if __name__ == '__main__':
     test_gopher_logic("human")
-    test_gopher_logic("random")
+    test_gopher_logic("random2")
